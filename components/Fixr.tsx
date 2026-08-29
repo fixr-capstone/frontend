@@ -6,7 +6,7 @@ import { highlight } from "@/lib/highlight";
 
 const SEVERITIES: Severity[] = ["critical", "high", "medium", "low"];
 const STATUS_LINES = [
-  "Running Semgrep, Bandit, pip-audit, Gitleaks...",
+  "Running Deptry, Bandit, pip-audit, Flake8...",
   "Reasoning about findings...",
   "Filtering false positives...",
 ];
@@ -172,7 +172,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
           <div className="eyebrow" style={{ marginBottom: 28 }}>How it works</div>
           <div className="steps">
             {[
-              ["01", "Scan", "Semgrep, Bandit, pip-audit, and Gitleaks run against your code."],
+              ["01", "Scan", "Deptry, Bandit, pip-audit, and Flake8 run against your code."],
               ["02", "Reason", "An LLM reads each finding in the actual context of your code and explains what's really happening."],
               ["03", "Rank", "A trained classifier filters out the noise, so only what matters rises to the top."],
             ].map(([num, title, body]) => (
