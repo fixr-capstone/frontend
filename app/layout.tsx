@@ -7,8 +7,8 @@ const sans = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "700"], 
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "Fixr — Security for vibe-coded apps",
-  description: "Find out what in your AI-generated code is actually dangerous before you ship it.",
+  title: "Fixr: security triage for AI-written Python",
+  description: "Fixr runs four Python scanners, filters out their false alarms, and explains the findings worth fixing.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
