@@ -1,8 +1,17 @@
 import type { Metadata } from "next";
-import { Big_Shoulders_Display, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Big_Shoulders, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const display = Big_Shoulders_Display({ subsets: ["latin"], weight: ["500", "700", "800"], variable: "--font-display" });
+// Google merged "Big Shoulders Display" into this variable family. Its optical-size
+// axis selects the display cut automatically at large sizes (font-optical-sizing: auto).
+const display = Big_Shoulders({
+  subsets: ["latin"],
+  axes: ["opsz"],
+  variable: "--font-display",
+  // Next has no fallback metrics for this family yet; name the fallback explicitly instead.
+  adjustFontFallback: false,
+  fallback: ["Arial Narrow", "sans-serif"],
+});
 const sans = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-sans" });
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-mono" });
 
