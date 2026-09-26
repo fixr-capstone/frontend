@@ -17,7 +17,7 @@ export const SEVERITY_COLOR: Record<Severity, string> = {
   critical: "#FF5C5C",
   high: "#FF9F45",
   medium: "#F5C84C",
-  low: "#3B1EFF",
+  low: "#8B7CFF",
 };
 
 const RANK: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -100,7 +100,7 @@ const FINDINGS: Record<ExampleKey, Finding[]> = {
       description:
         "Nothing verifies who is calling this. Any request that reaches the handler can delete any account by id. Check the caller against the target before the delete runs.",
       file: "app.py",
-      line: 12,
+      line: 11,
       snippet: 'def delete_account(user_id):\n    db.execute("DELETE FROM users WHERE id = " + user_id)',
       suggestedFix:
         'def delete_account(user_id, current_user):\n    if current_user.id != user_id and not current_user.is_admin:\n        raise PermissionError("not allowed")\n    db.execute("DELETE FROM users WHERE id = ?", (user_id,))',
@@ -112,7 +112,7 @@ const FINDINGS: Record<ExampleKey, Finding[]> = {
       description:
         "Same concatenation pattern as get_user, but on a destructive statement. An injected value here deletes rows you did not intend to touch.",
       file: "app.py",
-      line: 13,
+      line: 12,
       snippet: 'db.execute("DELETE FROM users WHERE id = " + user_id)',
       suggestedFix: 'db.execute("DELETE FROM users WHERE id = ?", (user_id,))',
     },
@@ -123,7 +123,7 @@ const FINDINGS: Record<ExampleKey, Finding[]> = {
       description:
         "fetch_external_data sends API_KEY in the Authorization header to whatever url it is given. A caller can point it at their own server and collect your key. Allow-list the hosts you actually call.",
       file: "app.py",
-      line: 18,
+      line: 17,
       snippet: 'return requests.get(url, headers={"Authorization": API_KEY}).json()',
       suggestedFix:
         'ALLOWED = {"api.internal", "api.stripe.com"}\n\nhost = urlparse(url).hostname\nif host not in ALLOWED:\n    raise ValueError("host not allowed")\nreturn requests.get(url, headers={"Authorization": API_KEY}, timeout=10).json()',
@@ -135,7 +135,7 @@ const FINDINGS: Record<ExampleKey, Finding[]> = {
       description:
         "except: pass hides network failures, auth errors, and bugs alike. Callers get None with no signal that anything failed, which is how silent data loss starts.",
       file: "app.py",
-      line: 19,
+      line: 18,
       snippet: "except:\n    pass",
       suggestedFix: 'except requests.RequestException as exc:\n    logger.warning("external fetch failed: %s", exc)\n    raise',
     },
