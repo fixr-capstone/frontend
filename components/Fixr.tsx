@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EXAMPLES, SEVERITY_COLOR, getResults, type ExampleKey, type Finding, type Severity } from "@/lib/findings";
 import { highlight, highlightLine } from "@/lib/highlight";
 import Hero from "@/components/Hero";
+import Chat from "@/components/Chat";
+import { buildFixPrompt } from "@/lib/fixPrompt";
 import { SNIPPET_FILE, scanZip, zipOne } from "@/lib/api";
 import Pipeline from "@/components/Pipeline";
 
@@ -52,6 +54,9 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [results, setResults] = useState<{ raw: number | null; findings: Finding[] }>({ raw: 0, findings: [] });
   const [source, setSource] = useState<Source>("sample");
   const [error, setError] = useState("");
+  const [scanId, setScanId] = useState(0);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatFocus, setChatFocus] = useState<Finding | null>(null);
   const [heroFindings, setHeroFindings] = useState<Finding[]>([]);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -118,6 +123,8 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
       if (forceError) throw new Error("The scanner did not return a result.");
       const [r] = await Promise.all([request(), new Promise((ok) => setTimeout(ok, SCAN_MS))]);
       setResults(r);
+      setScanId((n) => n + 1);
+      setChatOpen(false);
       setPhase("results");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -165,6 +172,16 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     navigator.clipboard?.writeText(text).catch(() => {});
     setCopied(id);
     timers.current.push(setTimeout(() => setCopied((c) => (c === id ? null : c)), 1400));
+  };
+
+  const openChat = (focus: Finding | null) => { setChatFocus(focus); setChatOpen(true); };
+  const closeChat = useCallback(() => setChatOpen(false), []);
+
+  const downloadPrompt = () => {
+    const url = URL.createObjectURL(new Blob([buildFixPrompt(findings, notes)], { type: "text/markdown" }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: "fixr-fix-prompt.md" });
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const loading = phase === "loading";
@@ -354,6 +371,19 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                 </p>
               </div>
 
+              <div className="handoff">
+                <p className="handoff__text">
+                  <strong>Fix it with the AI tool you already use.</strong> The fix prompt tells ChatGPT, Claude, Cursor or Copilot what is wrong, what to fix first and how to change it safely.
+                </p>
+                <div className="handoff__actions">
+                  <button className="btn btn--primary" onClick={downloadPrompt}>Download fix prompt</button>
+                  <button className="btn btn--ghost" onClick={() => copy("prompt", buildFixPrompt(findings, notes))}>
+                    {copied === "prompt" ? "Copied" : "Copy prompt"}
+                  </button>
+                  <button className="btn btn--ghost" onClick={() => openChat(null)}>Ask Fixr</button>
+                </div>
+              </div>
+
               <div className="bar-split" aria-label="Findings by severity">
                 {counts.filter((c) => c.n > 0).map((c) => (
                   <button
@@ -410,7 +440,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                         {(f.snippet || f.suggestedFix) && <div className="snips">
                           {f.snippet && <div className="snip snip--bad">
                             <div className="snip__head">
-                              <span>Vulnerable</span>
+                              <span>Flagged code</span>
                               <button className="copy" onClick={() => copy(f.id + "s", f.snippet)}>
                                 {copied === f.id + "s" ? "Copied" : "Copy"}
                               </button>
@@ -427,6 +457,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                             <pre>{highlight(f.suggestedFix)}</pre>
                           </div>}
                         </div>}
+                        <button className="ask" onClick={() => openChat(f)}>Ask about this finding</button>
                       </div>
                     )}
                   </li>
@@ -447,6 +478,10 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
           )}
         </section>
       </main>
+
+      {phase === "results" && all.length > 0 && (
+        <Chat key={scanId} open={chatOpen} onClose={closeChat} findings={all} focus={chatFocus} />
+      )}
 
       <footer className="footer">
         <div className="wrap footer__inner">

@@ -35,6 +35,35 @@ adapts the response: pasted code is sent as a one-file ZIP, `unknown` severity s
 `low`, the fix code block is pulled out of `metadata.explanation`, and the raw count
 (which the backend does not return) is left out of the summary.
 
+## Fix prompt
+
+After a scan, "Download fix prompt" saves `fixr-fix-prompt.md` (`lib/fixPrompt.ts`): the
+findings in priority order, each with the flagged code, what is wrong and the suggested fix,
+plus working rules for the AI tool (one fix at a time, no unrelated changes, plain-language
+summaries, rotate leaked secrets). It is built in the browser and needs no backend.
+
+## Chat (backend endpoint pending)
+
+The "Ask Fixr" drawer (`components/Chat.tsx`) is complete on this side. It goes live as soon
+as the backend serves this endpoint; until then it shows "Chat is not switched on yet".
+
+`POST /api/v0/chat`, JSON body:
+
+```json
+{
+  "messages": [{ "role": "user", "content": "Is this actually dangerous?" }],
+  "findings": [{ "id": "api1", "rule": "B608", "severity": "high", "title": "...", "file": "app.py",
+                 "line": 15, "snippet": "...", "description": "...", "suggestedFix": "...", "style": false }],
+  "focus_id": "api1"
+}
+```
+
+- Stateless: `messages` is the whole conversation so far, ending with the new question.
+- `focus_id` is the finding the user asked about, or `null` for the whole scan.
+- Reply: the answer as a `text/plain` stream (chunked). Send `Cache-Control: no-cache, no-transform`,
+  otherwise the Next.js proxy compresses the response and the reply arrives in one piece.
+- A 404 or 405 shows the "not switched on" message; any other error status shows it to the user.
+
 ## Motion
 
 Every animation uses `transform` or `opacity` and switches off under

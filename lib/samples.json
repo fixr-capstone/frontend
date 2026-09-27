@@ -22,7 +22,7 @@
     "confidence": "MEDIUM",
     "metadata": {
      "test_name": "hardcoded_password_string",
-     "explanation": "The string `API_TOKEN` is a secret key that is embedded directly in the source code. Anyone who can view or clone the repository has the token and can authenticate as the service owner, enabling unauthorized API access, data theft, or service disruption. Additionally, the token remains exposed until the repository is altered, making it a long\u2011lived credential.\n\n**Fix** \u2013 Remove the literal and load the token from a protected source at runtime. For example, use an environment variable:\n\n```python\nimport os\n\n# Prefer a secret manager or vault in production\nAPI_TOKEN = os.getenv(\"MY_SERVICE_API_TOKEN\")\n\nif not API_TOKEN:\n    raise RuntimeError(\"API token not configured\")\n```\n\nAfter the change, rotate the old key, delete it from the repo, and update the environment or secret manager with the new token. This limits exposure and allows secure rotation."
+     "explanation": "The string is an actual secret that can be used to authenticate to the external API. By keeping it in the source code it becomes public when the repository is shared or pushed to a VCS, allowing anyone to impersonate the owner or misuse the API.  \nFix it by storing the token outside the code and loading it at runtime, e.g.:\n\n```python\nimport os\nAPI_TOKEN = os.getenv(\"API_TOKEN\")  # read from environment or secret manager\n\nif not API_TOKEN:\n    raise ValueError(\"API_TOKEN not set\")\n```\n\nThen set the `API_TOKEN` variable in the deployment environment or in a secure secret store. After moving it out, treat the previous value as leaked and rotate it immediately."
     },
     "tp_probability": 1.0,
     "priority_score": 3.0
@@ -41,7 +41,7 @@
     "confidence": "LOW",
     "metadata": {
      "test_name": "hardcoded_sql_expressions",
-     "explanation": "The code builds a SQL statement by concatenating `user_id` into the string. If `user_id` originates from user input, an attacker can inject arbitrary SQL (e.g., `1'; DROP TABLE users;--`). The query is sent as a single string, so the database will execute any injected code.\n\nFix by using a parameterised query:\n\n```python\ndef get_user(user_id):\n    # Pass the value separately; the driver will escape it safely\n    query = \"SELECT * FROM users WHERE id = ?\"\n    result = db.execute(query, (user_id,))\n    return result\n```\n\n(Use `%s` or `?` depending on your DB driver.) This ensures `user_id` is treated as a literal value, not executable SQL."
+     "explanation": "The code builds the SQL command by concatenating the `user_id` directly into the string. If `user_id` originates from user input or any untrusted source, an attacker could inject arbitrary SQL (e.g., `1' OR '1'='1`) and retrieve or modify data.  \n\n**Fix:** Use a parameterized query. Pass the user-provided value separately so the driver handles escaping.  \n\n```python\ndef get_user(user_id):\n    query = \"SELECT * FROM users WHERE id = ?\"\n    result = db.execute(query, (user_id,))\n    return result\n```\n\nReplace `?` with the placeholder syntax required by your database driver (e.g., `%s` for psycopg2). This prevents the injected value from being executed as part of the SQL command."
     },
     "tp_probability": 0.9306626915931702,
     "priority_score": 2.7919880747795105
@@ -60,7 +60,7 @@
     "confidence": "MEDIUM",
     "metadata": {
      "test_name": "hardcoded_sql_expressions",
-     "explanation": "`user_id` is concatenated into the SQL text, so an attacker who controls that value could append or alter SQL statements (e.g., `1; DROP TABLE users;`). The driver will execute the entire string as a single statement.  \nFix by using a parameterized query and letting the database engine bind the value safely:\n\n```python\ndef delete_account(user_id):\n    # ensure user_id is an int if the caller passes a string\n    try:\n        uid = int(user_id)\n    except (TypeError, ValueError):\n        raise ValueError(\"Invalid user_id\")\n\n    db.execute(\"DELETE FROM users WHERE id = ?\", (uid,))\n    return {\"status\": \"deleted\"}\n```\n\nIf the DB API uses `%s` placeholders, replace `?` accordingly. This eliminates injection risk by separating data from code."
+     "explanation": "The function builds the SQL by concatenating the raw `user_id`. If an attacker passes something like `\"1; DROP TABLE users\"`, the `DELETE` statement will execute that extra command, deleting all records.  \n\nFix by using a parameterised query so the driver handles escaping:\n\n```python\ndef delete_account(user_id):\n    # Ensure user_id is an integer before passing it as a parameter\n    user_id = int(user_id)\n    db.execute(\"DELETE FROM users WHERE id = ?\", (user_id,))\n    return {\"status\": \"deleted\"}\n```\n\nNow the `user_id` value is sent separately and cannot alter the SQL command."
     },
     "tp_probability": 0.9306626915931702,
     "priority_score": 2.7919880747795105
@@ -79,7 +79,7 @@
     "confidence": "LOW",
     "metadata": {
      "test_name": "request_without_timeout",
-     "explanation": "The call can block indefinitely if the remote server is slow or unresponsive. This can tie up a worker process, exhaust resources, and make the service unavailable. Add a reasonable timeout and catch only request\u2011related exceptions instead of swallowing all errors.\n\n```python\nimport requests\nfrom requests.exceptions import RequestException\n\ndef fetch_external_data(url):\n    try:\n        response = requests.get(url, headers={\"Authorization\": API_TOKEN}, timeout=10)\n        response.raise_for_status()          # ensures HTTP errors raise\n        return response.json()\n    except RequestException as e:\n        # log e and return a safe fallback (None or empty dict)\n        return None\n```\n\nThis guarantees the request returns within 10\u202fs and prevents the code from hanging or silently ignoring failures."
+     "explanation": "The call to `requests.get` can block indefinitely if the remote service is slow or unresponsive, tying up the process or thread and potentially causing a denial\u2011of\u2011service.  \nAlso, the bare `except: pass` swallows all errors, making debugging hard and hiding timeouts, connection errors, or invalid responses.\n\n**Fix**  \n* Add a timeout argument.  \n* Catch only the exceptions you expect (`requests.exceptions.RequestException`).  \n* Log or propagate the error instead of silently swallowing it.\n\n```python\nimport logging\nimport requests\n\ndef fetch_external_data(url: str) -> dict | None:\n    try:\n        resp = requests.get(\n            url,\n            headers={\"Authorization\": API_TOKEN},\n            timeout=5.0   # seconds\n        )\n        resp.raise_for_status()\n        return resp.json()\n    except requests.exceptions.RequestException as e:\n        logging.error(\"Failed to fetch %s: %s\", url, e)\n        return None\n```\n\nThis ensures the call fails fast, resources aren\u2019t tied up, and errors are observable."
     },
     "tp_probability": 1.0,
     "priority_score": 2.0
@@ -98,7 +98,7 @@
     "confidence": "HIGH",
     "metadata": {
      "test_name": "blacklist",
-     "explanation": "The delay calculation uses `random.random()`, which is deterministic once seeded. If an attacker can observe or guess the retry attempts, they can predict the jittered delay and time their requests precisely\u2014useful for timing attacks or to force the system into a predictable back\u2011off pattern.  \n\nReplace the non\u2011cryptographic generator with a secure one:\n\n```python\nimport secrets\n\n# secure RNG\nrng = secrets.SystemRandom()\n\ndef retry_delay(attempt):\n    return 2 ** attempt + rng.random()\n```\n\n`secrets.SystemRandom()` draws from the operating system\u2019s CSPRNG, ensuring the jitter is not predictable. If the delay isn\u2019t a security\u2011critical value, you could document that it\u2019s acceptable, but the rule recommends using `secrets` for any case where predictability could be abused."
+     "explanation": "The `random.random()` call is only used to add jitter to the retry delay. Since this value does not influence a token, session ID, password reset key, or any other cryptographic decision, it is not a security\u2011relevant use of randomness. Therefore, this Bandit warning is a false positive for this context; the `random` module is adequate here. No change to the code is required."
     },
     "tp_probability": 0.9983861446380615,
     "priority_score": 1.996772289276123
@@ -303,7 +303,7 @@
     "confidence": "LOW",
     "metadata": {
      "test_name": "request_without_timeout",
-     "explanation": "The request can block indefinitely if the API is slow or unresponsive. A long\u2011running or hanging call ties up your process, consumes resources, and can make the whole service unavailable (a DoS risk).  \nFix: supply a timeout argument to `requests.get`. Use a sensible default (e.g., 10 seconds) and optionally allow callers to override it.\n\n```python\ndef fetch_profile(user_id, timeout=10):\n    url = f\"https://api.internal/users/{user_id}\"\n    resp = requests.get(url, timeout=timeout)\n    resp.raise_for_status()\n    return resp.json()\n```\n\nIf `user_id` comes from an untrusted source, consider validating or sanitizing it, but the primary issue here is the missing timeout."
+     "explanation": "The call can hang indefinitely if the remote service is slow or unresponsive, which may tie up the process and create a denial\u2011of\u2011service vector.  \nAdd a timeout to bound how long you wait for a response.\n\n```python\nimport requests\n\ndef fetch_profile(user_id):\n    url = f\"https://api.internal/users/{user_id}\"\n    resp = requests.get(url, timeout=5)  # timeout in seconds\n    resp.raise_for_status()\n    return resp.json()\n```"
     },
     "tp_probability": 1.0,
     "priority_score": 2.0

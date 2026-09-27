@@ -13,6 +13,7 @@ export type Finding = {
   snippet: string;
   suggestedFix: string;
   style?: boolean;
+  rule?: string;
 };
 
 export type ExampleKey = "messy" | "minor" | "clean";

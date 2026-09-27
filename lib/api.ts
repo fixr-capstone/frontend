@@ -72,7 +72,7 @@ function dedent(code: string) {
 export function splitExplanation(text: string) {
   const last = [...text.matchAll(FENCE)].at(-1);
   if (!last) return { description: clean(text), fix: "" };
-  const rest = text.slice(0, last.index) + text.slice(last.index + last[0].length);
+  const rest = text.slice(0, last.index) + "(see the suggested fix)" + text.slice(last.index + last[0].length);
   return { description: clean(rest.replace(FENCE, "$1")), fix: dedent(last[1]) };
 }
 
@@ -88,8 +88,9 @@ export function toFinding(f: ApiFinding, i: number): Finding {
   return {
     id: `api${i}`,
     style: f.category === "style",
+    rule: f.rule_id,
     severity,
-    title: f.message,
+    title: f.message.replace(/:\s*'[^']*'$/, ""),
     description: description || `${f.rule_id}: ${f.message}`,
     file: f.file_path.replace(/\\/g, "/").split("/repository/").pop() ?? f.file_path,
     line: f.line ?? 0,
@@ -110,4 +111,42 @@ export async function scanZip(zip: Blob): Promise<Finding[]> {
   if (!res.ok) throw new Error(`The Fixr backend returned ${res.status}. Is it running on port 8000?`);
   const data: { findings: ApiFinding[] } = await res.json();
   return data.findings.map(toFinding);
+}
+
+export type ChatMessage = { role: "user" | "assistant"; content: string };
+
+export const CHAT_OFFLINE = "Chat is not switched on yet. It needs the chat endpoint on the Fixr backend.";
+
+/** POST /api/v0/chat, stateless (full history each time); the reply streams back as plain text. */
+export async function chat(
+  messages: ChatMessage[],
+  findings: Finding[],
+  focusId: string | null,
+  onChunk: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch("/api/v0/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, findings, focus_id: focusId }),
+      signal,
+    });
+  } catch (e) {
+    if (signal?.aborted) return;
+    throw new Error("Could not reach the Fixr backend.");
+  }
+  if (res.status === 404 || res.status === 405) throw new Error(CHAT_OFFLINE);
+  if (!res.ok || !res.body) throw new Error(`The chat returned ${res.status}. Is the backend running on port 8000?`);
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      onChunk(value);
+    }
+  } catch (e) {
+    if (!signal?.aborted) throw e;
+  }
 }
