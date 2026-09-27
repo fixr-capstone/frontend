@@ -5,6 +5,8 @@ import { EXAMPLES, SEVERITY_COLOR, getResults, type ExampleKey, type Finding, ty
 import { highlight, highlightLine } from "@/lib/highlight";
 import Hero from "@/components/Hero";
 import Chat from "@/components/Chat";
+import Logo from "@/components/Logo";
+import XRay from "@/components/XRay";
 import { buildFixPrompt } from "@/lib/fixPrompt";
 import { Markdown } from "@/lib/markdown";
 import { SNIPPET_FILE, scanZip, zipOne } from "@/lib/api";
@@ -58,6 +60,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [scanId, setScanId] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatFocus, setChatFocus] = useState<Finding | null>(null);
+  const [hot, setHot] = useState<string | null>(null);
   const [heroFindings, setHeroFindings] = useState<Finding[]>([]);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -191,8 +194,18 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const notes = all.filter((f) => f.style);
   const visible = findings.filter((f) => !filter || f.severity === filter);
   const counts = SEVERITIES.map((s) => ({ severity: s, n: findings.filter((f) => f.severity === s).length }));
-  const total = findings.length || 1;
   const lines = code.split("\n");
+  const editorFile = source === "zip" ? null : source === "code" ? SNIPPET_FILE : example === "minor" ? "profile.py" : example === "clean" ? "clean.py" : "app.py";
+  const notesBlock = notes.length > 0 && (
+    <details className="notes">
+      <summary>{notes.length} style {notes.length === 1 ? "note" : "notes"} from flake8, not security issues</summary>
+      <ul>
+        {notes.map((n) => (
+          <li key={n.id}><span>{n.file}:{n.line}</span>{n.description}</li>
+        ))}
+      </ul>
+    </details>
+  );
 
   // flagged: tint per line (first wins); starts: clickable gutter marker per finding.
   const { flagged, starts } = useMemo(() => {
@@ -217,7 +230,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     <>
       <header className="header">
         <div className="wrap header__inner">
-          <span className="wordmark">FIXR</span>
+          <a href="#" className="logo-link" aria-label="Fixr, back to top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Logo /></a>
           <nav className="header__nav">
             <a href="#how" onClick={(e) => { e.preventDefault(); scrollTo("how"); }}>How it works</a>
             <a className="btn btn--sm" href="#scanner" onClick={(e) => { e.preventDefault(); scrollTo("scanner"); }}>Try the scanner</a>
@@ -385,19 +398,11 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                 </div>
               </div>
 
-              <div className="bar-split" aria-label="Findings by severity">
-                {counts.filter((c) => c.n > 0).map((c) => (
-                  <button
-                    key={c.severity}
-                    title={`${c.n} ${c.severity}`}
-                    aria-label={`Show only ${c.severity}`}
-                    className={filter && filter !== c.severity ? "is-dim" : ""}
-                    style={{ flex: c.n / total, background: SEVERITY_COLOR[c.severity] }}
-                    onClick={() => setFilter((cur) => (cur === c.severity ? null : c.severity))}
-                  />
-                ))}
-              </div>
-
+              <div className="triage">
+                <aside className="triage__map">
+                  <XRay findings={findings} notes={notes} code={source === "zip" ? null : code} codeFile={editorFile} hot={hot} onHot={setHot} onPick={openFinding} />
+                </aside>
+                <div className="triage__list">
               <div className="chips">
                 {counts.map((c) => (
                   <button
@@ -419,7 +424,9 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                   <li
                     key={f.id}
                     id={`finding-${f.id}`}
-                    className={`finding ${open[f.id] ? "is-open" : ""}`}
+                    className={`finding ${open[f.id] ? "is-open" : ""} ${hot === f.id ? "is-hot" : ""}`}
+                    onMouseEnter={() => setHot(f.id)}
+                    onMouseLeave={() => setHot(null)}
                     style={{ ["--c" as string]: SEVERITY_COLOR[f.severity], ["--i" as string]: i }}
                   >
                     <button
@@ -427,6 +434,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                       onClick={() => setOpen((o) => ({ ...o, [f.id]: !o[f.id] }))}
                       aria-expanded={!!open[f.id]}
                     >
+                      <span className="finding__rank">{String(findings.indexOf(f) + 1).padStart(2, "0")}</span>
                       <span className="finding__sev">{f.severity}</span>
                       <span className="finding__main">
                         <span className="finding__title">{f.title}</span>
@@ -464,19 +472,13 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                   </li>
                 ))}
               </ul>
+              {notesBlock}
+                </div>
+              </div>
             </>
           )}
 
-          {phase === "results" && notes.length > 0 && (
-            <details className="notes">
-              <summary>{notes.length} style {notes.length === 1 ? "note" : "notes"} from flake8, not security issues</summary>
-              <ul>
-                {notes.map((n) => (
-                  <li key={n.id}><span>{n.file}:{n.line}</span>{n.description}</li>
-                ))}
-              </ul>
-            </details>
-          )}
+          {phase === "results" && findings.length === 0 && notesBlock}
         </section>
       </main>
 
@@ -486,7 +488,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
 
       <footer className="footer">
         <div className="wrap footer__inner">
-          <span className="wordmark wordmark--sm">FIXR</span>
+          <Logo small />
           <span>Security triage for AI-written Python. Sample results are prepared; your own code is scanned live.</span>
         </div>
       </footer>

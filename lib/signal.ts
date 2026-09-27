@@ -12,10 +12,9 @@ const bars = [
 
 /** The messy sample's real scan, one bar per raw warning in line order. */
 export const TOTAL = bars.length;
-export const KIND = bars.map((b) => b.kind);
 /** Bar position of each worth-fixing finding, in rank order. */
 export const REAL_AT = real.map((f) => bars.findIndex((b) => b.kind === "real" && b.rule_id === f.rule_id && b.line === f.line));
-export const EXPLAINED = real.map((f) => "explanation" in f.metadata);
+const EXPLAINED = real.map((f) => "explanation" in f.metadata);
 export const COUNTS = {
   raw,
   dropped: dropped.length,

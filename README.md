@@ -21,11 +21,14 @@ or point the page elsewhere with `FIXR_API_URL=http://host:port npm run dev`.
 - `app/globals.css`: the whole design system. One dark theme, one accent (mint), 2px corners
 - `components/Fixr.tsx`: the page. Header, hero, scanner with a flagged-line gutter, results
 - `components/Hero.tsx`: the hero. A scan line sweeps the messy sample's raw warnings, crossing out the headline as it goes; false alarms and style notes collapse and the findings worth fixing rise, numbered by priority
-- `components/Pipeline.tsx`: how it works, in the real pipeline order (scan, filter, rank, explain)
+- `components/Logo.tsx`: stencil wordmark and a five-bar mark (four noise, one signal) that plays the filter on hover
+- `components/Pipeline.tsx`: how it works. The section pins while you scroll and runs scan, filter, rank and explain over the real `app.py` scan, line by line
+- `components/XRay.tsx`: results minimap. Each file drawn one bar per line, findings lit by severity and numbered by priority, linked to the list
+- `components/Chat.tsx`: the Ask Fixr drawer
 - `lib/highlight.tsx`: small Python tokenizer used by the editor and the code blocks
 - `lib/findings.ts`: sample data and sample source files
 - `lib/api.ts`: live scans. Zips pasted code, posts to the backend, maps its findings to the page's shape
-- `lib/signal.ts`: the bar layout and counts shared by the hero and the pipeline funnel, derived from `lib/samples.json`
+- `lib/signal.ts`: the bar layout and counts used by the hero, derived from `lib/samples.json`
 - `lib/samples.json`: real backend output for the three samples (after editing a sample, regenerate with `scripts/snapshot_samples.py`)
 
 ## Backend
