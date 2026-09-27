@@ -15,7 +15,7 @@ function Rich({ text }: { text: string }) {
   return (
     <>
       {text.split(/```[\w-]*\n?/).map((part, i) =>
-        i % 2 ? <pre key={i}>{highlight(part.trimEnd())}</pre> : part.trim() && <p key={i}>{part.trim()}</p>,
+        i % 2 ? <pre key={i}>{highlight(part.trimEnd())}</pre> : part.trim() && <p key={i}>{part.trim().replace(/\*\*/g, "")}</p>,
       )}
     </>
   );

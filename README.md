@@ -42,10 +42,10 @@ findings in priority order, each with the flagged code, what is wrong and the su
 plus working rules for the AI tool (one fix at a time, no unrelated changes, plain-language
 summaries, rotate leaked secrets). It is built in the browser and needs no backend.
 
-## Chat (backend endpoint pending)
+## Chat
 
-The "Ask Fixr" drawer (`components/Chat.tsx`) is complete on this side. It goes live as soon
-as the backend serves this endpoint; until then it shows "Chat is not switched on yet".
+The "Ask Fixr" drawer (`components/Chat.tsx`) talks to this endpoint, served by the backend's
+`feature/chat` branch (not yet on main). Without it the drawer shows "Chat is not switched on yet".
 
 `POST /api/v0/chat`, JSON body:
 
