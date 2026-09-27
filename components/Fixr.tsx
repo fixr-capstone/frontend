@@ -6,6 +6,7 @@ import { highlight, highlightLine } from "@/lib/highlight";
 import Hero from "@/components/Hero";
 import Chat from "@/components/Chat";
 import { buildFixPrompt } from "@/lib/fixPrompt";
+import { Markdown } from "@/lib/markdown";
 import { SNIPPET_FILE, scanZip, zipOne } from "@/lib/api";
 import Pipeline from "@/components/Pipeline";
 
@@ -436,7 +437,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
 
                     {open[f.id] && (
                       <div className="finding__body">
-                        <p className="finding__desc">{f.description}</p>
+                        <Markdown className="finding__desc" text={f.description} />
                         {(f.snippet || f.suggestedFix) && <div className="snips">
                           {f.snippet && <div className="snip snip--bad">
                             <div className="snip__head">
