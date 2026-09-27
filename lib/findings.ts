@@ -9,6 +9,7 @@ export type Finding = {
   line: number;
   snippet: string;
   suggestedFix: string;
+  style?: boolean;
 };
 
 export type ExampleKey = "messy" | "minor" | "clean";

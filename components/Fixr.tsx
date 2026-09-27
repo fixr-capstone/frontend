@@ -168,7 +168,9 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   };
 
   const loading = phase === "loading";
-  const findings = phase === "results" ? results.findings : [];
+  const all = phase === "results" ? results.findings : [];
+  const findings = all.filter((f) => !f.style);
+  const notes = all.filter((f) => f.style);
   const visible = findings.filter((f) => !filter || f.severity === filter);
   const counts = SEVERITIES.map((s) => ({ severity: s, n: findings.filter((f) => f.severity === s).length }));
   const total = findings.length || 1;
@@ -405,8 +407,8 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                     {open[f.id] && (
                       <div className="finding__body">
                         <p className="finding__desc">{f.description}</p>
-                        <div className="snips">
-                          <div className="snip snip--bad">
+                        {(f.snippet || f.suggestedFix) && <div className="snips">
+                          {f.snippet && <div className="snip snip--bad">
                             <div className="snip__head">
                               <span>Vulnerable</span>
                               <button className="copy" onClick={() => copy(f.id + "s", f.snippet)}>
@@ -414,7 +416,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                               </button>
                             </div>
                             <pre>{highlight(f.snippet)}</pre>
-                          </div>
+                          </div>}
                           {f.suggestedFix && <div className="snip snip--fix">
                             <div className="snip__head">
                               <span>Suggested fix</span>
@@ -424,13 +426,24 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                             </div>
                             <pre>{highlight(f.suggestedFix)}</pre>
                           </div>}
-                        </div>
+                        </div>}
                       </div>
                     )}
                   </li>
                 ))}
               </ul>
             </>
+          )}
+
+          {phase === "results" && notes.length > 0 && (
+            <details className="notes">
+              <summary>{notes.length} style {notes.length === 1 ? "note" : "notes"} from flake8, not security issues</summary>
+              <ul>
+                {notes.map((n) => (
+                  <li key={n.id}><span>{n.file}:{n.line}</span>{n.description}</li>
+                ))}
+              </ul>
+            </details>
           )}
         </section>
       </main>

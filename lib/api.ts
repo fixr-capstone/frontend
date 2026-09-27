@@ -4,6 +4,7 @@ export const SNIPPET_FILE = "untitled.py";
 
 type ApiFinding = {
   rule_id: string;
+  category: "security" | "dependency" | "style";
   severity: "low" | "medium" | "high" | "unknown";
   file_path: string;
   line: number | null;
@@ -58,10 +59,21 @@ export function zipOne(name: string, text: string): Blob {
   return new Blob([local, fname, data, central, fname, end], { type: "application/zip" });
 }
 
-function splitExplanation(text: string) {
-  const fence = /```[a-z]*\n([\s\S]*?)```/;
-  const fix = text.match(fence)?.[1].trimEnd() ?? "";
-  return { description: text.replace(fence, "").replace(/\n{3,}/g, "\n\n").trim(), fix };
+const FENCE = /```[\w-]*\n([\s\S]*?)```/g;
+const clean = (s: string) => s.replace(/\*\*/g, "").replace(/\n{3,}/g, "\n\n").trim();
+
+function dedent(code: string) {
+  const lines = code.trimEnd().split("\n");
+  const pad = Math.min(...lines.filter((l) => l.trim()).map((l) => l.match(/^ */)![0].length));
+  return lines.map((l) => l.slice(pad)).join("\n");
+}
+
+/** The last code block is the fix; earlier ones (attack examples) stay inline as text. */
+export function splitExplanation(text: string) {
+  const last = [...text.matchAll(FENCE)].at(-1);
+  if (!last) return { description: clean(text), fix: "" };
+  const rest = text.slice(0, last.index) + text.slice(last.index + last[0].length);
+  return { description: clean(rest.replace(FENCE, "$1")), fix: dedent(last[1]) };
 }
 
 /** Bandit prefixes each snippet line with its number and pads with context lines; keep from the flagged line on. */
@@ -75,6 +87,7 @@ export function toFinding(f: ApiFinding, i: number): Finding {
   const { description, fix } = splitExplanation(f.metadata?.explanation ?? "");
   return {
     id: `api${i}`,
+    style: f.category === "style",
     severity,
     title: f.message,
     description: description || `${f.rule_id}: ${f.message}`,
