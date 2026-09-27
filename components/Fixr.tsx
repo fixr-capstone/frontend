@@ -60,7 +60,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
-    getResults("messy").then((r) => setHeroFindings(r.findings));
+    getResults("messy").then((r) => setHeroFindings(r.findings.filter((f) => !f.style)));
     return () => timers.current.forEach(clearTimeout);
   }, []);
 
@@ -348,7 +348,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                 </div>
                 <p className="summary__text">
                   {results.raw !== null
-                    ? `${results.raw} raw warnings, ${results.raw - findings.length} dropped as likely noise. `
+                    ? `${results.raw} raw warnings: ${results.raw - all.length} dropped as ${results.raw - all.length === 1 ? "a likely false alarm" : "likely false alarms"}, ${notes.length} style notes set aside. `
                     : "Filtered and ranked by the Fixr backend. "}
                   <strong>{findings.length} worth your time.</strong>
                 </p>

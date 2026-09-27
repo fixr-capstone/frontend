@@ -2,7 +2,7 @@
 
 Security triage for AI-written Python. Single page, no routing, no auth.
 
-The three sample files have prepared results in `lib/findings.ts`. Anything else (edited
+The three sample files have prepared results in `lib/samples.json`: a snapshot of what the real backend returns for them, including the LLM explanations. Anything else (edited
 samples, pasted code, an uploaded `.zip`) is scanned live by the Fixr backend.
 
 ## Run
@@ -20,12 +20,13 @@ or point the page elsewhere with `FIXR_API_URL=http://host:port npm run dev`.
 - `app/layout.tsx`: fonts (Big Shoulders Display, Space Grotesk, JetBrains Mono) and metadata
 - `app/globals.css`: the whole design system. One dark theme, one accent (mint), 2px corners
 - `components/Fixr.tsx`: the page. Header, hero, scanner with a flagged-line gutter, results
-- `components/Hero.tsx`: the hero. A scan line sweeps 41 raw warnings, crossing out the headline as it goes; noise collapses and the 6 real findings rise, numbered by priority
+- `components/Hero.tsx`: the hero. A scan line sweeps the messy sample's raw warnings, crossing out the headline as it goes; false alarms and style notes collapse and the findings worth fixing rise, numbered by priority
 - `components/Pipeline.tsx`: how it works, in the real pipeline order (scan, filter, rank, explain)
 - `lib/highlight.tsx`: small Python tokenizer used by the editor and the code blocks
 - `lib/findings.ts`: sample data and sample source files
 - `lib/api.ts`: live scans. Zips pasted code, posts to the backend, maps its findings to the page's shape
-- `lib/signal.ts`: the 41-bar layout shared by the hero and the pipeline funnel
+- `lib/signal.ts`: the bar layout and counts shared by the hero and the pipeline funnel, derived from `lib/samples.json`
+- `lib/samples.json`: real backend output for the three samples (after editing a sample, regenerate with `scripts/snapshot_samples.py`)
 
 ## Backend
 

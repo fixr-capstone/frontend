@@ -2,7 +2,7 @@ import type { Finding, Severity } from "@/lib/findings";
 
 export const SNIPPET_FILE = "untitled.py";
 
-type ApiFinding = {
+export type ApiFinding = {
   rule_id: string;
   category: "security" | "dependency" | "style";
   severity: "low" | "medium" | "high" | "unknown";

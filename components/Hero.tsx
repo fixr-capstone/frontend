@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SEVERITY_COLOR, type Finding } from "@/lib/findings";
-import { REAL_AT, REST, TOTAL, noiseHeight } from "@/lib/signal";
+import { COUNTS, REAL_AT, REST, TOTAL, noiseHeight } from "@/lib/signal";
 
 const SWEEP_MS = 2400;
 const FACTS = [
@@ -46,7 +46,7 @@ export default function Hero({
   const shown = active !== null ? byIndex.get(active) : undefined;
 
   return (
-    <section className={`wrap hero ${sweeping ? "is-sweeping" : ""} ${done ? "is-done" : ""}`} style={{ ["--sweep" as string]: `${SWEEP_MS}ms` }}>
+    <section className={`wrap hero ${sweeping ? "is-sweeping" : ""} ${done ? "is-done" : ""}`} style={{ ["--sweep" as string]: `${SWEEP_MS}ms`, ["--n" as string]: TOTAL }}>
       <div className="hero__copy">
         <h1 className="hero__title">
           <span className="hero__raw">{TOTAL} warnings.</span>
@@ -69,7 +69,7 @@ export default function Hero({
       <div className="signal">
         <div className="signal__meta" aria-hidden="true">
           <span>app.py, raw scanner output</span>
-          <span className="signal__tally"><b>{scanned - kept}</b> dropped <b className="signal__kept">{kept}</b> kept</span>
+          <span className="signal__tally"><b>{scanned - kept}</b> set aside <b className="signal__kept">{kept}</b> worth fixing</span>
         </div>
 
         <div className="signal__field" onMouseLeave={() => setActive(null)}>
@@ -128,7 +128,7 @@ export default function Hero({
             </>
           ) : done ? (
             <>
-              <span className="readout__muted">Numbered by priority.</span>
+              <span className="readout__muted">{COUNTS.dropped} dropped as {COUNTS.dropped === 1 ? "a false alarm" : "false alarms"}, {COUNTS.notes} style notes set aside. Numbered by priority.</span>
               <span className="readout__hint readout__hint--pointer">Hover a bar to read it, click to open it</span>
               <span className="readout__hint readout__hint--touch">Tap a bar to open it</span>
             </>

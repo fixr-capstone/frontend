@@ -1,0 +1,385 @@
+{
+ "messy": {
+  "raw": 17,
+  "dropped": [
+   {
+    "rule_id": "B324",
+    "line": 9
+   }
+  ],
+  "findings": [
+   {
+    "tool": "bandit",
+    "category": "security",
+    "rule_id": "B105",
+    "severity": "high",
+    "file_path": "app.py",
+    "line": 6,
+    "column": 12,
+    "message": "Possible hardcoded password: 'sk-live-4f9a2b8c1d3e4f5a6b7c8d9e0f1a2b3c'",
+    "snippet": "5 \n6 API_TOKEN = \"sk-live-4f9a2b8c1d3e4f5a6b7c8d9e0f1a2b3c\"\n7 \n",
+    "cwe_id": 259,
+    "confidence": "MEDIUM",
+    "metadata": {
+     "test_name": "hardcoded_password_string",
+     "explanation": "The string `API_TOKEN` is a secret key that is embedded directly in the source code. Anyone who can view or clone the repository has the token and can authenticate as the service owner, enabling unauthorized API access, data theft, or service disruption. Additionally, the token remains exposed until the repository is altered, making it a long\u2011lived credential.\n\n**Fix** \u2013 Remove the literal and load the token from a protected source at runtime. For example, use an environment variable:\n\n```python\nimport os\n\n# Prefer a secret manager or vault in production\nAPI_TOKEN = os.getenv(\"MY_SERVICE_API_TOKEN\")\n\nif not API_TOKEN:\n    raise RuntimeError(\"API token not configured\")\n```\n\nAfter the change, rotate the old key, delete it from the repo, and update the environment or secret manager with the new token. This limits exposure and allows secure rotation."
+    },
+    "tp_probability": 1.0,
+    "priority_score": 3.0
+   },
+   {
+    "tool": "bandit",
+    "category": "security",
+    "rule_id": "B608",
+    "severity": "high",
+    "file_path": "app.py",
+    "line": 15,
+    "column": 12,
+    "message": "Possible SQL injection vector through string-based query construction.",
+    "snippet": "14 def get_user(user_id):\n15     query = \"SELECT * FROM users WHERE id = '\" + user_id + \"'\"\n16     result = db.execute(query)\n",
+    "cwe_id": 89,
+    "confidence": "LOW",
+    "metadata": {
+     "test_name": "hardcoded_sql_expressions",
+     "explanation": "The code builds a SQL statement by concatenating `user_id` into the string. If `user_id` originates from user input, an attacker can inject arbitrary SQL (e.g., `1'; DROP TABLE users;--`). The query is sent as a single string, so the database will execute any injected code.\n\nFix by using a parameterised query:\n\n```python\ndef get_user(user_id):\n    # Pass the value separately; the driver will escape it safely\n    query = \"SELECT * FROM users WHERE id = ?\"\n    result = db.execute(query, (user_id,))\n    return result\n```\n\n(Use `%s` or `?` depending on your DB driver.) This ensures `user_id` is treated as a literal value, not executable SQL."
+    },
+    "tp_probability": 0.9306626915931702,
+    "priority_score": 2.7919880747795105
+   },
+   {
+    "tool": "bandit",
+    "category": "security",
+    "rule_id": "B608",
+    "severity": "high",
+    "file_path": "app.py",
+    "line": 20,
+    "column": 15,
+    "message": "Possible SQL injection vector through string-based query construction.",
+    "snippet": "19 def delete_account(user_id):\n20     db.execute(\"DELETE FROM users WHERE id = \" + user_id)\n21     return {\"status\": \"deleted\"}\n",
+    "cwe_id": 89,
+    "confidence": "MEDIUM",
+    "metadata": {
+     "test_name": "hardcoded_sql_expressions",
+     "explanation": "`user_id` is concatenated into the SQL text, so an attacker who controls that value could append or alter SQL statements (e.g., `1; DROP TABLE users;`). The driver will execute the entire string as a single statement.  \nFix by using a parameterized query and letting the database engine bind the value safely:\n\n```python\ndef delete_account(user_id):\n    # ensure user_id is an int if the caller passes a string\n    try:\n        uid = int(user_id)\n    except (TypeError, ValueError):\n        raise ValueError(\"Invalid user_id\")\n\n    db.execute(\"DELETE FROM users WHERE id = ?\", (uid,))\n    return {\"status\": \"deleted\"}\n```\n\nIf the DB API uses `%s` placeholders, replace `?` accordingly. This eliminates injection risk by separating data from code."
+    },
+    "tp_probability": 0.9306626915931702,
+    "priority_score": 2.7919880747795105
+   },
+   {
+    "tool": "bandit",
+    "category": "security",
+    "rule_id": "B113",
+    "severity": "medium",
+    "file_path": "app.py",
+    "line": 25,
+    "column": 15,
+    "message": "Call to requests without timeout",
+    "snippet": "24     try:\n25         return requests.get(url, headers={\"Authorization\": API_TOKEN}).json()\n26     except:\n",
+    "cwe_id": 400,
+    "confidence": "LOW",
+    "metadata": {
+     "test_name": "request_without_timeout",
+     "explanation": "The call can block indefinitely if the remote server is slow or unresponsive. This can tie up a worker process, exhaust resources, and make the service unavailable. Add a reasonable timeout and catch only request\u2011related exceptions instead of swallowing all errors.\n\n```python\nimport requests\nfrom requests.exceptions import RequestException\n\ndef fetch_external_data(url):\n    try:\n        response = requests.get(url, headers={\"Authorization\": API_TOKEN}, timeout=10)\n        response.raise_for_status()          # ensures HTTP errors raise\n        return response.json()\n    except RequestException as e:\n        # log e and return a safe fallback (None or empty dict)\n        return None\n```\n\nThis guarantees the request returns within 10\u202fs and prevents the code from hanging or silently ignoring failures."
+    },
+    "tp_probability": 1.0,
+    "priority_score": 2.0
+   },
+   {
+    "tool": "bandit",
+    "category": "security",
+    "rule_id": "B311",
+    "severity": "medium",
+    "file_path": "app.py",
+    "line": 12,
+    "column": 26,
+    "message": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
+    "snippet": "11 def retry_delay(attempt):\n12     return 2 ** attempt + random.random()\n13 \n",
+    "cwe_id": 330,
+    "confidence": "HIGH",
+    "metadata": {
+     "test_name": "blacklist",
+     "explanation": "The delay calculation uses `random.random()`, which is deterministic once seeded. If an attacker can observe or guess the retry attempts, they can predict the jittered delay and time their requests precisely\u2014useful for timing attacks or to force the system into a predictable back\u2011off pattern.  \n\nReplace the non\u2011cryptographic generator with a secure one:\n\n```python\nimport secrets\n\n# secure RNG\nrng = secrets.SystemRandom()\n\ndef retry_delay(attempt):\n    return 2 ** attempt + rng.random()\n```\n\n`secrets.SystemRandom()` draws from the operating system\u2019s CSPRNG, ensuring the jitter is not predictable. If the delay isn\u2019t a security\u2011critical value, you could document that it\u2019s acceptable, but the rule recommends using `secrets` for any case where predictability could be abused."
+    },
+    "tp_probability": 0.9983861446380615,
+    "priority_score": 1.996772289276123
+   },
+   {
+    "tool": "bandit",
+    "category": "security",
+    "rule_id": "B110",
+    "severity": "low",
+    "file_path": "app.py",
+    "line": 26,
+    "column": 4,
+    "message": "Try, Except, Pass detected.",
+    "snippet": "25         return requests.get(url, headers={\"Authorization\": API_TOKEN}).json()\n26     except:\n27         pass\n",
+    "cwe_id": 703,
+    "confidence": "HIGH",
+    "metadata": {
+     "test_name": "try_except_pass"
+    },
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "deptry",
+    "category": "dependency",
+    "rule_id": "DEP003",
+    "severity": "low",
+    "file_path": "app.py",
+    "line": 4,
+    "column": 8,
+    "message": "'requests' imported but it is a transitive dependency",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {
+     "module": "requests"
+    },
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "F401",
+    "severity": "low",
+    "file_path": "app.py",
+    "line": 2,
+    "column": 1,
+    "message": "'os' imported but unused",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "E302",
+    "severity": "low",
+    "file_path": "app.py",
+    "line": 8,
+    "column": 1,
+    "message": "expected 2 blank lines, found 1",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "E302",
+    "severity": "low",
+    "file_path": "app.py",
+    "line": 11,
+    "column": 1,
+    "message": "expected 2 blank lines, found 1",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "E302",
+    "severity": "low",
+    "file_path": "app.py",
+    "line": 14,
+    "column": 1,
+    "message": "expected 2 blank lines, found 1",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "E302",
+    "severity": "low",
+    "file_path": "app.py",
+    "line": 19,
+    "column": 1,
+    "message": "expected 2 blank lines, found 1",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "E302",
+    "severity": "low",
+    "file_path": "app.py",
+    "line": 23,
+    "column": 1,
+    "message": "expected 2 blank lines, found 1",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "F821",
+    "severity": "low",
+    "file_path": "app.py",
+    "line": 16,
+    "column": 14,
+    "message": "undefined name 'db'",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "F821",
+    "severity": "low",
+    "file_path": "app.py",
+    "line": 20,
+    "column": 5,
+    "message": "undefined name 'db'",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "E722",
+    "severity": "low",
+    "file_path": "app.py",
+    "line": 26,
+    "column": 5,
+    "message": "do not use bare 'except'",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   }
+  ]
+ },
+ "minor": {
+  "raw": 3,
+  "dropped": [],
+  "findings": [
+   {
+    "tool": "bandit",
+    "category": "security",
+    "rule_id": "B113",
+    "severity": "medium",
+    "file_path": "profile.py",
+    "line": 4,
+    "column": 11,
+    "message": "Call to requests without timeout",
+    "snippet": "3 def fetch_profile(user_id):\n4     resp = requests.get(\"https://api.internal/users/\" + str(user_id))\n5     resp.raise_for_status()\n",
+    "cwe_id": 400,
+    "confidence": "LOW",
+    "metadata": {
+     "test_name": "request_without_timeout",
+     "explanation": "The request can block indefinitely if the API is slow or unresponsive. A long\u2011running or hanging call ties up your process, consumes resources, and can make the whole service unavailable (a DoS risk).  \nFix: supply a timeout argument to `requests.get`. Use a sensible default (e.g., 10 seconds) and optionally allow callers to override it.\n\n```python\ndef fetch_profile(user_id, timeout=10):\n    url = f\"https://api.internal/users/{user_id}\"\n    resp = requests.get(url, timeout=timeout)\n    resp.raise_for_status()\n    return resp.json()\n```\n\nIf `user_id` comes from an untrusted source, consider validating or sanitizing it, but the primary issue here is the missing timeout."
+    },
+    "tp_probability": 1.0,
+    "priority_score": 2.0
+   },
+   {
+    "tool": "deptry",
+    "category": "dependency",
+    "rule_id": "DEP003",
+    "severity": "low",
+    "file_path": "profile.py",
+    "line": 1,
+    "column": 8,
+    "message": "'requests' imported but it is a transitive dependency",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {
+     "module": "requests"
+    },
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "E302",
+    "severity": "low",
+    "file_path": "profile.py",
+    "line": 3,
+    "column": 1,
+    "message": "expected 2 blank lines, found 1",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   }
+  ]
+ },
+ "clean": {
+  "raw": 2,
+  "dropped": [],
+  "findings": [
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "F401",
+    "severity": "low",
+    "file_path": "clean.py",
+    "line": 1,
+    "column": 1,
+    "message": "'sqlite3' imported but unused",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   },
+   {
+    "tool": "flake8",
+    "category": "style",
+    "rule_id": "E302",
+    "severity": "low",
+    "file_path": "clean.py",
+    "line": 3,
+    "column": 1,
+    "message": "expected 2 blank lines, found 1",
+    "snippet": null,
+    "cwe_id": null,
+    "confidence": null,
+    "metadata": {},
+    "tp_probability": 1.0,
+    "priority_score": 1.0
+   }
+  ]
+ }
+}

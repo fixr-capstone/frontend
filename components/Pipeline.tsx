@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { SEVERITY_COLOR, getResults, type Finding } from "@/lib/findings";
-import { REAL_AT, REST, TOTAL, noiseHeight } from "@/lib/signal";
+import { COUNTS, EXPLAINED, KIND, REAL_AT, REST, TOTAL, noiseHeight } from "@/lib/signal";
 
 /** The order here is the real order of the Fixr pipeline. */
 const STAGES = [
@@ -10,28 +10,28 @@ const STAGES = [
     verb: "Scan",
     body: "Four Python scanners run over the code, each looking for a different kind of problem.",
     detail: "Bandit, pip-audit, deptry, flake8",
-    count: 41,
+    count: COUNTS.raw,
     label: "raw warnings",
   },
   {
     verb: "Filter",
     body: "A classifier drops the Bandit warnings that are most likely false alarms. It reads the flagged line, not just the rule name.",
     detail: "XGBoost, trained on OWASP Benchmark for Python",
-    count: 6,
-    label: "likely real",
+    count: COUNTS.kept,
+    label: "kept",
   },
   {
     verb: "Rank",
-    body: "What survives is ordered by how serious it is and how likely it is to be real.",
+    body: "What survives is ordered by how serious it is and how likely it is to be real. Style notes go to the bottom.",
     detail: "severity weighted by true-positive probability",
-    count: 6,
-    label: "in priority order",
+    count: COUNTS.real,
+    label: "worth fixing",
   },
   {
     verb: "Explain",
     body: "The top findings get a plain explanation and a fix, written from the function they sit in.",
     detail: "LLM, top five findings only",
-    count: 5,
+    count: COUNTS.explained,
     label: "explained",
   },
 ];
@@ -44,7 +44,7 @@ export default function Pipeline() {
   const [real, setReal] = useState<Finding[]>([]);
 
   useEffect(() => {
-    getResults("messy").then((r) => setReal(r.findings));
+    getResults("messy").then((r) => setReal(r.findings.filter((f) => !f.style)));
   }, []);
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export default function Pipeline() {
         </p>
 
         <div data-reveal>
-        <figure className={`funnel ${phase}`} aria-label={`${stage.count} ${stage.label}`}>
+        <figure className={`funnel ${phase}`} style={{ ["--n" as string]: TOTAL }} aria-label={`${stage.count} ${stage.label}`}>
           <div className="funnel__count" aria-hidden="true">
             <span className="funnel__num" key={active}>{stage.count}</span>
             <span className="funnel__label" key={`l${active}`}>{stage.label}</span>
@@ -96,7 +96,7 @@ export default function Pipeline() {
               return (
                 <span
                   key={i}
-                  className={`tick ${finding ? "tick--real" : ""} ${rank === REAL_AT.length - 1 ? "tick--last" : ""}`}
+                  className={`tick tick--${KIND[i]} ${finding && !EXPLAINED[rank] ? "tick--unexplained" : ""}`}
                   style={{
                     ["--i" as string]: i,
                     ["--h" as string]: noiseHeight(i),
