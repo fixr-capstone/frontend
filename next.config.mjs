@@ -9,7 +9,10 @@ const nextConfig = {
   // A package-lock.json in a parent folder otherwise becomes the workspace root.
   outputFileTracingRoot: root,
   // Same-origin proxy to the FastAPI backend, so it needs no CORS setup.
-  rewrites: async () => [{ source: "/api/v0/:path*", destination: `${api}/api/v0/:path*` }],
+  rewrites: async () => [
+    { source: "/api/v0/:path*", destination: `${api}/api/v0/:path*` },
+    { source: "/favicon.ico", destination: "/icon.svg" },
+  ],
   experimental: { proxyTimeout: 180_000 },
 };
 

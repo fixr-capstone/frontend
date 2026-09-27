@@ -150,3 +150,13 @@ export async function chat(
     if (!signal?.aborted) throw e;
   }
 }
+
+export const MAX_UPLOAD_MB = 25;
+
+export async function checkBackend(): Promise<boolean> {
+  try {
+    return ((await (await fetch("/api/health", { cache: "no-store" })).json()) as { online: boolean }).online;
+  } catch {
+    return false;
+  }
+}

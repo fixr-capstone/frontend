@@ -21,7 +21,9 @@ or point the page elsewhere with `FIXR_API_URL=http://host:port npm run dev`.
 - `app/globals.css`: the whole design system. One dark theme, one accent (mint), 2px corners
 - `components/Fixr.tsx`: the page. Header, hero, scanner with a flagged-line gutter, results
 - `components/Hero.tsx`: the hero. A scan line sweeps the messy sample's raw warnings, crossing out the headline as it goes; false alarms and style notes collapse and the findings worth fixing rise, numbered by priority
-- `components/Logo.tsx`: stencil wordmark and a five-bar mark (four noise, one signal) that plays the filter on hover
+- `components/Logo.tsx`: code brackets around one mint bar (the line that matters) and the wordmark; `app/icon.svg` is the same mark as the favicon
+- `app/api/health/route.ts`: tells the page whether the backend is up, for the live-scanner status
+- `app/not-found.tsx`: the 404 page
 - `components/Pipeline.tsx`: how it works. The section pins while you scroll and runs scan, filter, rank and explain over the real `app.py` scan, line by line
 - `components/XRay.tsx`: results minimap. Each file drawn one bar per line, findings lit by severity and numbered by priority, linked to the list
 - `components/Chat.tsx`: the Ask Fixr drawer

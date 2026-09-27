@@ -9,7 +9,7 @@ import Logo from "@/components/Logo";
 import XRay from "@/components/XRay";
 import { buildFixPrompt } from "@/lib/fixPrompt";
 import { Markdown } from "@/lib/markdown";
-import { SNIPPET_FILE, scanZip, zipOne } from "@/lib/api";
+import { MAX_UPLOAD_MB, SNIPPET_FILE, checkBackend, scanZip, zipOne } from "@/lib/api";
 import Pipeline from "@/components/Pipeline";
 
 const SEVERITIES: Severity[] = ["critical", "high", "medium", "low"];
@@ -52,7 +52,10 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [statusIdx, setStatusIdx] = useState(0);
   const [filter, setFilter] = useState<Severity | null>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const [emptyWarn, setEmptyWarn] = useState(false);
+  const [warn, setWarn] = useState("");
+  const [online, setOnline] = useState<boolean | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [results, setResults] = useState<{ raw: number | null; findings: Finding[] }>({ raw: 0, findings: [] });
   const [source, setSource] = useState<Source>("sample");
@@ -67,6 +70,16 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const preRef = useRef<HTMLPreElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => { checkBackend().then(setOnline); }, []);
+
+  useEffect(() => {
+    if (phase !== "loading") return;
+    const start = Date.now();
+    setElapsed(0);
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [phase]);
 
   useEffect(() => {
     getResults("messy").then((r) => setHeroFindings(r.findings.filter((f) => !f.style)));
@@ -108,12 +121,12 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     setPhase("idle");
     setFilter(null);
     setOpen({});
-    setEmptyWarn(false);
+    setWarn("");
   };
 
   const run = async (src: Source, request: () => Promise<{ raw: number | null; findings: Finding[] }>) => {
     clearTimers();
-    setEmptyWarn(false);
+    setWarn("");
     setFilter(null);
     setOpen({});
     setSource(src);
@@ -133,19 +146,36 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
+      checkBackend().then(setOnline);
     }
     clearTimers();
     timers.current.push(setTimeout(() => scrollTo("results"), 80));
   };
 
   const scan = () => {
-    if (!code.trim()) { setEmptyWarn(true); return; }
+    if (!code.trim()) { setWarn("Pick a sample or paste some code first."); return; }
     if (isSample) run("sample", () => getResults(example));
     else run("code", async () => ({ raw: null, findings: await scanZip(zipOne(SNIPPET_FILE, code)) }));
   };
 
   const scanUpload = (file: File | undefined) => {
-    if (file) run("zip", async () => ({ raw: null, findings: await scanZip(file) }));
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".zip")) { setWarn("Upload a .zip of your project."); return; }
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) { setWarn(`That .zip is over ${MAX_UPLOAD_MB} MB. Leave out virtual environments and data files.`); return; }
+    run("zip", async () => ({ raw: null, findings: await scanZip(file) }));
+  };
+
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (!file || phase === "loading") return;
+    if (file.name.toLowerCase().endsWith(".py")) {
+      setExample(null);
+      setCode(await file.text());
+      setPhase("idle");
+      setWarn("");
+    } else scanUpload(file);
   };
 
   const reset = () => {
@@ -155,7 +185,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     setPhase("idle");
     setFilter(null);
     setOpen({});
-    setEmptyWarn(false);
+    setWarn("");
     setResults({ raw: 0, findings: [] });
     scrollTo("scanner");
     taRef.current?.focus({ preventScroll: true });
@@ -228,6 +258,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
 
   return (
     <>
+      <a className="skip" href="#main">Skip to content</a>
       <header className="header">
         <div className="wrap header__inner">
           <a href="#" className="logo-link" aria-label="Fixr, back to top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Logo /></a>
@@ -238,7 +269,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
         </div>
       </header>
 
-      <main>
+      <main id="main">
         <Hero findings={heroFindings} onPick={pickFromHero} onNav={scrollTo} />
 
         <Pipeline />
@@ -246,7 +277,10 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
         <section className="wrap scanner" id="scanner">
           <h2 className="h2" data-reveal>Scan it</h2>
           <p className="scanner__note" data-reveal style={{ ["--d" as string]: "90ms" }}>
-            The samples have prepared results. Edit one or paste your own Python and it goes to the Fixr backend, or upload a whole project as a .zip.
+            The samples have prepared results. Edit one or paste your own Python and it goes to the Fixr backend, or drop in a whole project as a .zip.
+          </p>
+          <p className={`live live--${online === null ? "wait" : online ? "on" : "off"}`} data-reveal style={{ ["--d" as string]: "120ms" }}>
+            {online === null ? "Checking the live scanner" : online ? "Live scanner online" : "Live scanner offline. The samples still work."}
           </p>
 
           <div className="tabs" role="group" aria-label="Sample files" data-reveal style={{ ["--d" as string]: "160ms" }}>
@@ -257,8 +291,15 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
             ))}
           </div>
 
-          <div data-reveal style={{ ["--d" as string]: "230ms" }}>
-          <div className={`editor ${loading ? "is-scanning" : ""}`}>
+          <div
+            data-reveal
+            style={{ ["--d" as string]: "230ms" }}
+            onDragOver={(e) => { e.preventDefault(); if (!loading) setDragging(true); }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }}
+            onDrop={onDrop}
+          >
+          <div className={`editor ${loading ? "is-scanning" : ""} ${dragging ? "is-drop" : ""}`}>
+            {dragging && <div className="drop" aria-hidden="true"><b>Drop to scan</b><span>A .zip scans the project. A .py file opens here.</span></div>}
             <div className="editor__bar">
               <span>{example && isSample ? `${example === "minor" ? "profile" : "app"}.py` : "untitled.py"}</span>
               <span>{lines.length} {lines.length === 1 ? "line" : "lines"}</span>
@@ -312,7 +353,8 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                   spellCheck={false}
                   placeholder="Pick a sample above, or paste Python here"
                   aria-label="Code to scan"
-                  onChange={(e) => { setCode(e.target.value); setEmptyWarn(false); setPhase("idle"); }}
+                  onChange={(e) => { setCode(e.target.value); setWarn(""); setPhase("idle"); }}
+                  onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); if (!loading) scan(); } }}
                   onScroll={syncScroll}
                 />
                 {loading && <span className="beam" aria-hidden="true" />}
@@ -323,7 +365,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
 
           <div className="actions">
             <button className="btn btn--primary" disabled={!code.trim() || loading} onClick={scan}>
-              {loading ? "Scanning" : "Scan for vulnerabilities"}
+              {loading ? `Scanning ${elapsed}s` : "Scan for vulnerabilities"}
             </button>
             <label className={`btn btn--ghost upload ${loading ? "is-disabled" : ""}`}>
               Upload .zip
@@ -332,8 +374,13 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
             {(phase === "results" || phase === "error") && (
               <button className="btn btn--ghost" onClick={reset}>Start over</button>
             )}
-            {emptyWarn && <span className="warn">Pick a sample or paste some code first.</span>}
+            {warn && <span className="warn" role="alert">{warn}</span>}
+            <span className="kbd-hint"><kbd>Ctrl</kbd> <kbd>Enter</kbd> to scan</span>
           </div>
+          <p className="privacy">
+            Your code goes to the Fixr backend for the scan and is deleted when it finishes. The functions around the top
+            findings are sent to an AI model (Groq) to write the explanations. Results are guidance, not a security audit.
+          </p>
 
           {loading && (
             <ol className="statuses" aria-live="polite">
@@ -488,8 +535,26 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
 
       <footer className="footer">
         <div className="wrap footer__inner">
-          <Logo small />
-          <span>Security triage for AI-written Python. Sample results are prepared; your own code is scanned live.</span>
+          <div className="footer__brand">
+            <Logo small />
+            <p>Security triage for AI-written Python. Four scanners, one classifier, and plain-language fixes.</p>
+          </div>
+          <nav className="footer__col" aria-label="Page">
+            <span>On this page</span>
+            <a href="#how" onClick={(e) => { e.preventDefault(); scrollTo("how"); }}>How it works</a>
+            <a href="#scanner" onClick={(e) => { e.preventDefault(); scrollTo("scanner"); }}>Scanner</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Back to top</a>
+          </nav>
+          <div className="footer__col">
+            <span>Under the hood</span>
+            <p>Bandit, pip-audit, deptry, flake8</p>
+            <p>XGBoost false-alarm filter</p>
+            <p>Explanations by an LLM on Groq</p>
+          </div>
+        </div>
+        <div className="wrap footer__base">
+          <span>Fixr, a capstone project by Parth, Sparsh and Shrey</span>
+          <span>Sample results are prepared. Your own code is scanned live.</span>
         </div>
       </footer>
     </>
