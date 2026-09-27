@@ -14,6 +14,7 @@ const nextConfig = {
     { source: "/favicon.ico", destination: "/icon.svg" },
   ],
   experimental: { proxyTimeout: 180_000 },
+  devIndicators: false,
 };
 
 export default nextConfig;
