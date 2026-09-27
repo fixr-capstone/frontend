@@ -1,18 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Big_Shoulders, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-// "Big Shoulders Display" now lives in this family; the opsz axis picks the display cut.
-const display = Big_Shoulders({
-  subsets: ["latin"],
-  axes: ["opsz"],
-  variable: "--font-display",
-  // Next has no fallback metrics for this family yet; name the fallback explicitly instead.
-  adjustFontFallback: false,
-  fallback: ["Arial Narrow", "sans-serif"],
-});
-const sans = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-sans" });
-const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-mono" });
+// Self-hosted latin variable fonts: no build-time download that can silently fall back.
+const display = localFont({ src: "./fonts/bigshoulders.woff2", weight: "100 900", variable: "--font-display", adjustFontFallback: false, fallback: ["Arial Narrow", "sans-serif"] });
+const sans = localFont({ src: "./fonts/spacegrotesk.woff2", weight: "300 700", variable: "--font-sans" });
+const mono = localFont({ src: "./fonts/jetbrainsmono.woff2", weight: "100 800", variable: "--font-mono" });
 
 const description = "Fixr runs four Python scanners, filters out their false alarms, and explains the findings worth fixing.";
 

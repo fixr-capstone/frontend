@@ -125,11 +125,12 @@ button { font: inherit; color: inherit; }
 .hero__raw { position: relative; width: fit-content; color: var(--muted); transition: color 600ms; }
 .hero.is-done .hero__raw { color: var(--faint); }
 /* the scan line crosses out the headline as it crosses the field */
-.hero__raw::after {
-  content: ""; position: absolute; left: -0.04em; right: -0.04em; top: 50%; height: 0.07em;
-  background: var(--mint); transform-origin: left; transform: scaleX(0);
+/* per-line strike: each wrapped line gets its own, drawn as the scan line crosses */
+.hero__strike {
+  background: linear-gradient(var(--mint), var(--mint)) no-repeat 0 52% / 0% 0.07em;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
-.hero.is-sweeping .hero__raw::after { transform: scaleX(1); transition: transform var(--sweep) linear; }
+.hero.is-sweeping .hero__strike { background-size: 100% 0.07em; transition: background-size var(--sweep) linear; }
 .hero__real { color: var(--line-strong); transition: color 500ms; animation-delay: 140ms !important; }
 .hero.is-done .hero__real { color: var(--mint); }
 .hero__sub { margin: 28px 0 0; max-width: 44ch; font-size: 19px; color: var(--muted); text-wrap: pretty; animation: rise 700ms 240ms var(--ease) both; }

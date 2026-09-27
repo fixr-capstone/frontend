@@ -49,7 +49,7 @@ export default function Hero({
     <section className={`wrap hero ${sweeping ? "is-sweeping" : ""} ${done ? "is-done" : ""}`} style={{ ["--sweep" as string]: `${SWEEP_MS}ms`, ["--n" as string]: TOTAL }}>
       <div className="hero__copy">
         <h1 className="hero__title">
-          <span className="hero__raw">{TOTAL} warnings.</span>
+          <span className="hero__raw"><span className="hero__strike">{TOTAL} warnings.</span></span>
           <span className="hero__real">{REAL_AT.length} worth fixing.</span>
         </h1>
         <p className="hero__sub">
