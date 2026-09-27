@@ -91,6 +91,16 @@ export default function Pipeline() {
           </div>
           <h3 className="how__verb" key={`v${stage}`}>{s.verb}</h3>
           <p className="how__body" key={`b${stage}`}>{s.body}</p>
+          <button
+            type="button"
+            className="how__skip"
+            onClick={() => {
+              const el = document.getElementById("scanner");
+              if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 88, behavior: "smooth" });
+            }}
+          >
+            Skip to the scanner
+          </button>
         </div>
 
         <figure className="console" aria-label={`The messy sample at the ${s.verb.toLowerCase()} stage`}>

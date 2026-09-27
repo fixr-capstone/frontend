@@ -839,3 +839,10 @@ kbd {
 .md-code:hover .md-code__copy, .md-code__copy:focus-visible { opacity: 1; }
 .md-code__copy:hover { color: var(--mint); border-color: var(--mint); }
 @media (prefers-reduced-motion: reduce) { .chat, .chat-scrim { transition: none; } }
+
+.how__skip {
+  margin-top: 22px; padding: 0; background: none; border: 0; cursor: pointer;
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+  text-decoration: underline; text-underline-offset: 4px; transition: color 140ms;
+}
+.how__skip:hover { color: var(--mint); }
