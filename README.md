@@ -2,9 +2,8 @@
 
 Security triage for AI-written Python. Single page, no routing, no auth.
 
-**Results on this page are sample data.** Three sample files have prepared results in
-`lib/findings.ts`. Pasting your own code shows a "samples only" notice instead of a fake
-result, because nothing here is connected to the backend yet.
+The three sample files have prepared results in `lib/findings.ts`. Anything else (edited
+samples, pasted code, an uploaded `.zip`) is scanned live by the Fixr backend.
 
 ## Run
 
@@ -13,35 +12,27 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000
+Open http://localhost:3000. For live scans, run the backend (`rest_backend`) on port 8000,
+or point the page elsewhere with `FIXR_API_URL=http://host:port npm run dev`.
 
 ## Files
 
 - `app/layout.tsx`: fonts (Big Shoulders Display, Space Grotesk, JetBrains Mono) and metadata
 - `app/globals.css`: the whole design system. One dark theme, one accent (mint), 2px corners
 - `components/Fixr.tsx`: the page. Header, hero, scanner with a flagged-line gutter, results
-- `components/SignalField.tsx`: the hero. 41 raw warnings, a scan line sweeps across, noise collapses and the 6 real findings rise. Hover or focus a bar to read it
+- `components/Hero.tsx`: the hero. A scan line sweeps 41 raw warnings, crossing out the headline as it goes; noise collapses and the 6 real findings rise, numbered by priority
 - `components/Pipeline.tsx`: how it works, in the real pipeline order (scan, filter, rank, explain)
 - `lib/highlight.tsx`: small Python tokenizer used by the editor and the code blocks
 - `lib/findings.ts`: sample data and sample source files
+- `lib/api.ts`: live scans. Zips pasted code, posts to the backend, maps its findings to the page's shape
+- `lib/signal.ts`: the 41-bar layout shared by the hero and the pipeline funnel
 
-## Connecting the real backend
+## Backend
 
-`getResults(example)` in `lib/findings.ts` is the only place findings come from, but a
-`fetch` alone is not enough. The backend (`POST /api/v0/repositories`) differs from this
-page in several ways that need an adapter:
-
-| This page expects | Backend returns |
-|---|---|
-| a pasted code string | a ZIP upload |
-| `critical / high / medium / low` | `high / medium / low / unknown` |
-| `title` and `description` | `message`, plus `metadata.explanation` on the top findings |
-| a separate `suggestedFix` | the fix is inside the explanation text |
-| `raw` (count before filtering) | not returned |
-| `line` always a number | `null` for dependency findings |
-| `id` | none |
-
-The backend also has no CORS, so a browser on another port is blocked until it adds it.
+`next.config.mjs` proxies `/api/v0/*` to the backend, so it needs no CORS. `lib/api.ts`
+adapts the response: pasted code is sent as a one-file ZIP, `unknown` severity shows as
+`low`, the fix code block is pulled out of `metadata.explanation`, and the raw count
+(which the backend does not return) is left out of the summary.
 
 ## Motion
 

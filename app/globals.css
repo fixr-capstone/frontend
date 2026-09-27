@@ -30,7 +30,8 @@ html, body {
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 17px;
   line-height: 1.55;
-  overflow-x: hidden;
+  /* clip, not hidden: hidden breaks scroll-driven animations */
+  overflow-x: clip;
 }
 
 a { color: inherit; text-decoration: none; }
@@ -75,6 +76,15 @@ button { font: inherit; color: inherit; }
   border-bottom: 1px solid var(--line);
 }
 .header__inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+/* reading progress: how far down the page you are, drawn on the header's bottom edge */
+@supports (animation-timeline: scroll()) {
+  .header::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+    background: var(--mint); transform-origin: left; transform: scaleX(0);
+    animation: grow-x linear both; animation-timeline: scroll(root);
+  }
+}
+@keyframes grow-x { to { transform: scaleX(1); } }
 .wordmark { font-family: var(--display); font-weight: 800; font-size: 34px; line-height: 1; letter-spacing: 0.02em; color: var(--mint); }
 .wordmark--sm { font-size: 22px; }
 .header__nav { display: flex; align-items: center; gap: 28px; font-size: 15px; }
@@ -84,35 +94,65 @@ button { font: inherit; color: inherit; }
 /* hero --------------------------------------------------------------------- */
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-  gap: 64px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+  gap: 72px;
   align-items: center;
   min-height: calc(100dvh - 64px);
-  padding-block: 56px 72px;
+  padding-block: 48px 72px;
 }
 .hero__title {
   margin: 0;
   font-family: var(--display); font-weight: 800; text-transform: uppercase;
-  font-size: clamp(52px, 6.2vw, 92px); line-height: 0.9; letter-spacing: 0.005em;
+  font-size: clamp(54px, 6.4vw, 100px); line-height: 0.9; letter-spacing: 0.005em;
 }
 .hero__title span { display: block; animation: rise 700ms var(--ease) both; }
-.hero__raw { color: var(--faint); }
-.hero__real { color: var(--mint); animation-delay: 140ms !important; }
+.hero__raw { position: relative; width: fit-content; color: var(--muted); transition: color 600ms; }
+.hero.is-done .hero__raw { color: var(--faint); }
+/* the scan line crosses out the headline as it crosses the field */
+.hero__raw::after {
+  content: ""; position: absolute; left: -0.04em; right: -0.04em; top: 50%; height: 0.07em;
+  background: var(--mint); transform-origin: left; transform: scaleX(0);
+}
+.hero.is-sweeping .hero__raw::after { transform: scaleX(1); transition: transform var(--sweep) linear; }
+.hero__real { color: var(--line-strong); transition: color 500ms; animation-delay: 140ms !important; }
+.hero.is-done .hero__real { color: var(--mint); }
 .hero__sub { margin: 28px 0 0; max-width: 44ch; font-size: 19px; color: var(--muted); text-wrap: pretty; animation: rise 700ms 240ms var(--ease) both; }
 .hero__ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; animation: rise 700ms 320ms var(--ease) both; }
+.hero__facts {
+  display: flex; flex-wrap: wrap; gap: 20px 44px; margin: 48px 0 0; padding-top: 22px;
+  border-top: 1px solid var(--line); animation: rise 700ms 400ms var(--ease) both;
+}
+.hero__facts div { display: flex; flex-direction: column-reverse; }
+.hero__facts dd { margin: 0; font-family: var(--display); font-weight: 800; font-size: 40px; line-height: 1; }
+.hero__facts dt { margin-top: 6px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+@supports (animation-timeline: view()) {
+  .hero { view-timeline: --hero block; }
+  .hero__copy, .signal {
+    animation: hero-out linear both;
+    animation-timeline: --hero;
+    animation-range: exit 25% exit 90%;
+  }
+}
+@keyframes hero-out { to { opacity: 0.25; transform: translateY(-48px); } }
 
 @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 
 /* signal field (hero signature) -------------------------------------------- */
-.signal { position: relative; }
+.signal { position: relative; animation: rise 800ms 200ms var(--ease) both; }
+.signal__meta {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; padding-bottom: 16px;
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+.signal__tally b { font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
+.signal__tally .signal__kept { margin-left: 14px; color: var(--mint); }
+.signal__field, .signal__ranks { display: grid; grid-template-columns: repeat(41, 1fr); gap: 5px; }
 .signal__field {
   position: relative;
   container-type: inline-size;
-  display: grid; grid-template-columns: repeat(41, 1fr); gap: 5px;
-  height: 300px;
+  height: 340px;
   align-items: end;
   border-bottom: 1px solid var(--line-strong);
-  /* keeps the scan line's trail inside the field; top inset lets the line overshoot upward */
+  background: linear-gradient(color-mix(in srgb, var(--line) 70%, transparent) 1px, transparent 1px) 0 0 / 100% 25%;
   clip-path: inset(-14px 0 -1px 0);
 }
 .bar {
@@ -123,11 +163,10 @@ button { font: inherit; color: inherit; }
   transform: scaleY(var(--h));
   transition: transform 520ms var(--ease), background-color 420ms ease, opacity 420ms ease;
 }
-.signal__field:not(.is-sweeping) .bar { animation: jitter 2.4s ease-in-out infinite; }
-.signal__field.is-sweeping .bar--noise { transform: scaleY(0.035); opacity: 0.55; }
-.signal__field.is-sweeping .bar--real { background: var(--c); }
+.hero:not(.is-sweeping) .bar { animation: jitter 2.4s ease-in-out infinite; }
+.is-sweeping .bar--noise { transform: scaleY(0.035); opacity: 0.55; }
+.is-sweeping .bar--real { background: var(--c); }
 .bar--real { position: relative; cursor: pointer; }
-/* the bars are a few px wide; widen the hit area without changing how they look */
 .bar--real::before { content: ""; position: absolute; top: 0; bottom: 0; left: -8px; right: -8px; }
 .readout__hint--touch { display: none; }
 @media (hover: none) {
@@ -157,9 +196,16 @@ button { font: inherit; color: inherit; }
   100% { transform: translateX(100cqw); opacity: 0; }
 }
 
+.signal__ranks { height: 24px; padding-top: 8px; font-family: var(--mono); font-size: 11px; line-height: 1; }
+.signal__ranks span {
+  grid-row: 1; justify-self: center; color: var(--c);
+  opacity: 0; transform: translateY(-6px); transition: opacity 400ms, transform 400ms var(--ease);
+}
+.is-done .signal__ranks span { opacity: 1; transform: none; transition-delay: calc(var(--n) * 90ms); }
+
 .signal__readout {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px;
-  min-height: 56px; padding-top: 16px;
+  min-height: 56px; padding-top: 14px;
   font-family: var(--mono); font-size: 13px;
 }
 .readout__sev { text-transform: uppercase; letter-spacing: 0.14em; }
@@ -168,10 +214,9 @@ button { font: inherit; color: inherit; }
 .readout__muted { color: var(--muted); }
 .readout__hint { margin-left: auto; }
 .signal__replay {
-  position: absolute; top: -34px; right: 0;
-  background: none; border: 0; padding: 4px 0; cursor: pointer;
+  background: none; border: 0; padding: 0; cursor: pointer;
   font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
-  transition: color 140ms;
+  transition: color 140ms, opacity 200ms;
 }
 .signal__replay:hover:not(:disabled) { color: var(--mint); }
 .signal__replay:disabled { opacity: 0; }
@@ -190,7 +235,8 @@ button { font: inherit; color: inherit; }
   content: ""; position: absolute; left: 6px; top: 22px; bottom: 22px; width: 2px; background: var(--line);
 }
 .stage { position: relative; padding: 0 0 72px 52px; }
-.stage:last-child { padding-bottom: 0; }
+/* room for the last stage to reach mid-screen while the funnel beside it is still pinned */
+.stage:last-child { padding-bottom: 160px; }
 .stage::before {
   content: ""; position: absolute; left: 0; top: 16px; width: 14px; height: 14px; z-index: 1;
   background: var(--ink); border: 2px solid var(--line-strong); border-radius: var(--radius);
@@ -211,6 +257,66 @@ button { font: inherit; color: inherit; }
 .stage.is-in > * { opacity: 1; transform: none; }
 .stage.is-in > :nth-child(2) { transition-delay: 80ms; }
 .stage.is-in > :nth-child(3) { transition-delay: 160ms; }
+.stage.is-active .stage__verb { color: var(--mint); }
+.stage > .stage__verb { transition: color 300ms, opacity 600ms var(--ease), transform 600ms var(--ease); }
+
+/* The rail fills with scroll itself rather than in steps, where the browser can do it. */
+@supports (animation-timeline: view()) {
+  .stages { view-timeline: --stages block; }
+  .stage:not(:last-child)::after { display: none; }
+  .stages::after {
+    content: ""; position: absolute; left: 6px; top: 22px; bottom: 22px; width: 2px;
+    background: var(--mint); transform-origin: top; transform: scaleY(0);
+    animation: grow-y linear both; animation-timeline: --stages; animation-range: entry 70% cover 75%;
+  }
+}
+.stage::before, .stage:last-child::after { z-index: 1; }
+@keyframes grow-y { to { transform: scaleY(1); } }
+
+/* funnel: the messy sample, redrawn at whichever stage is in the middle of the screen */
+.funnel { margin: 44px 0 0; padding: 22px 0 0; border-top: 1px solid var(--line); }
+.funnel__count { display: flex; align-items: baseline; gap: 14px; min-height: 76px; overflow: hidden; }
+.funnel__num {
+  font-family: var(--display); font-weight: 800; font-size: 80px; line-height: 0.9; color: var(--mint);
+  font-variant-numeric: tabular-nums; animation: count-in 520ms var(--ease) both;
+}
+.funnel__label { font-family: var(--mono); font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); animation: count-in 520ms 60ms var(--ease) both; }
+@keyframes count-in { from { opacity: 0; transform: translateY(60%); } to { opacity: 1; transform: none; } }
+
+.funnel__strip {
+  --gap: 4px;
+  display: grid; grid-template-columns: repeat(41, 1fr); gap: var(--gap); align-items: end;
+  height: 110px; margin-top: 18px; border-bottom: 1px solid var(--line-strong);
+}
+.tick {
+  display: block; height: 100%; border-radius: 1px; background: #34313d;
+  transform-origin: bottom; transform: scaleY(var(--h));
+  transition: transform 700ms var(--ease), background-color 500ms ease, opacity 500ms ease;
+  transition-delay: calc(var(--i) * 9ms);
+}
+.funnel:not(.s1) .tick { animation: jitter 2.4s ease-in-out infinite; animation-delay: calc(var(--i) * -110ms); }
+/* filter: noise flattens, the six real findings rise in their severity colour */
+.funnel.s1 .tick { transform: scaleY(0.05); opacity: 0.4; }
+.funnel.s1 .tick--real { transform: scaleY(var(--rest)); opacity: 1; background: var(--c); }
+/* rank: the six slide to the front, highest priority first */
+.funnel.s2 .tick { opacity: 0; }
+.funnel.s2 .tick--real {
+  opacity: 1; transition-delay: calc(var(--rank) * 60ms);
+  transform: translateX(calc((var(--rank) - var(--i)) * (100% + var(--gap)))) scaleY(var(--rest));
+}
+/* explain: only the top five get an explanation */
+.funnel.s3 .tick--last { opacity: 0.22; }
+.funnel__caption { margin-top: 12px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+/* scroll reveals: only once JS has opted the page in, so nothing is hidden without it */
+.js-reveal [data-reveal] {
+  opacity: 0; transform: translateY(26px);
+  transition: opacity 800ms var(--ease), transform 800ms var(--ease), clip-path 900ms var(--ease);
+  transition-delay: var(--d, 0ms);
+}
+.js-reveal .h2[data-reveal] { opacity: 1; transform: translateY(0.35em); clip-path: inset(0 0 100% 0); }
+.js-reveal [data-reveal].is-in { opacity: 1; transform: none; clip-path: inset(-0.1em -0.1em -0.2em -0.1em); }
+
 .stage__verb { margin: 0; font-family: var(--display); font-weight: 800; font-size: 52px; line-height: 1; text-transform: uppercase; }
 .stage__body { margin: 10px 0 0; max-width: 46ch; font-size: 18px; text-wrap: pretty; }
 .stage__detail { margin: 12px 0 0; font-family: var(--mono); font-size: 13px; color: var(--muted); }
@@ -260,6 +366,11 @@ button { font: inherit; color: inherit; }
 .code__inner { min-width: 100%; width: max-content; }
 .code__line { min-height: 1.7em; padding-right: 24px; }
 .code__line.is-flag { background: color-mix(in srgb, var(--c) 12%, transparent); }
+/* results land in the code top to bottom, the way you would read them */
+.code__line.is-flag, .gutter__n.is-flag, .gutter__n.is-span {
+  animation: flag-in 520ms var(--ease) both; animation-delay: calc(var(--ln) * 40ms);
+}
+@keyframes flag-in { from { background-color: transparent; box-shadow: inset 0 0 0 transparent; } }
 .editor__input {
   position: absolute; inset: 0; width: 100%;
   background: transparent; border: 0; resize: none; outline: none;
@@ -280,6 +391,7 @@ button { font: inherit; color: inherit; }
 }
 
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 20px; }
+.upload.is-disabled { opacity: 0.4; pointer-events: none; }
 .warn { font-family: var(--mono); font-size: 14px; color: #ff9f45; }
 
 .statuses { list-style: none; margin: 20px 0 0; padding: 18px 22px; border: 1px solid var(--line); border-radius: var(--radius); display: grid; gap: 8px; }
@@ -348,7 +460,7 @@ button { font: inherit; color: inherit; }
 .finding__toggle::after { top: 0; bottom: 0; left: 7px; width: 2px; }
 .finding.is-open .finding__toggle { transform: rotate(45deg); }
 .finding__body { padding: 0 24px 32px 164px; animation: rise 360ms var(--ease) both; }
-.finding__body p { margin: 0 0 22px; max-width: 68ch; font-size: 17px; text-wrap: pretty; }
+.finding__body p { white-space: pre-line; margin: 0 0 22px; max-width: 68ch; font-size: 17px; text-wrap: pretty; }
 
 .snips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .snip { background: var(--ink); border: 1px solid var(--line); border-top: 2px solid var(--critical); border-radius: var(--radius); padding: 14px 16px 16px; }
@@ -386,11 +498,24 @@ button { font: inherit; color: inherit; }
 @media (max-width: 900px) {
   .wrap { padding-inline: 20px; }
   .hero { grid-template-columns: 1fr; gap: 48px; min-height: 0; padding-block: 40px 56px; }
-  .signal__field { height: 200px; gap: 3px; }
+  .hero__facts { margin-top: 36px; gap: 16px 32px; }
+  .hero__facts dd { font-size: 32px; }
+  .signal__field { height: 220px; }
+  .signal__field, .signal__ranks { gap: 3px; }
   .readout__hint { margin-left: 0; }
-  .pipeline { grid-template-columns: 1fr; gap: 48px; padding-block: 80px; }
-  .pipeline__head { position: static; }
-  .stage { padding-bottom: 52px; }
+  .pipeline { grid-template-columns: 1fr; gap: 0; padding-block: 80px; }
+  /* the head's children join the section grid, so the funnel can stay pinned over the stages */
+  .pipeline__head, .pipeline__head > [data-reveal] { display: contents; }
+  .funnel {
+    position: sticky; top: 64px; z-index: 5; margin: 28px 0 0; padding: 12px 0 10px;
+    background: var(--ink); border-top: 0; border-bottom: 1px solid var(--line);
+  }
+  .funnel__count { min-height: 46px; }
+  .funnel__num { font-size: 46px; }
+  .funnel__strip { height: 56px; margin-top: 8px; --gap: 2px; }
+  .funnel__caption { display: none; }
+  .stages { margin-top: 36px; }
+  .stage, .stage:last-child { padding-bottom: 52px; }
   .stage__verb { font-size: 42px; }
   .scanner { padding-top: 80px; }
   .editor__body { grid-template-columns: 44px minmax(0, 1fr); height: 380px; }
@@ -408,7 +533,11 @@ button { font: inherit; color: inherit; }
 }
 @media (max-width: 520px) {
   .header__nav > a:not(.btn) { display: none; }
-  .signal__field { gap: 2px; }
+  .signal__field, .signal__ranks { gap: 2px; }
+  .signal__ranks { font-size: 9px; }
+  .hero__facts { flex-wrap: nowrap; gap: 22px; }
+  .hero__facts dd { font-size: 28px; }
+  .hero__facts dt { font-size: 10px; letter-spacing: 0.06em; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -420,4 +549,9 @@ button { font: inherit; color: inherit; }
     transition-delay: 0s !important;
   }
   .stage > * { opacity: 1; transform: none; }
+  .js-reveal [data-reveal] { opacity: 1; transform: none; clip-path: none; }
+  /* scroll-linked animations ignore duration, so switch them off explicitly */
+  .header::after, .hero__copy, .signal, .stages::after { animation: none !important; }
+  .header::after { display: none; }
+  .stages::after { transform: none; }
 }

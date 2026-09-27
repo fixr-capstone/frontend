@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EXAMPLES, SEVERITY_COLOR, getResults, type ExampleKey, type Finding, type Severity } from "@/lib/findings";
 import { highlight, highlightLine } from "@/lib/highlight";
-import SignalField from "@/components/SignalField";
+import Hero from "@/components/Hero";
+import { SNIPPET_FILE, scanZip, zipOne } from "@/lib/api";
 import Pipeline from "@/components/Pipeline";
 
 const SEVERITIES: Severity[] = ["critical", "high", "medium", "low"];
@@ -16,7 +17,28 @@ const STATUS_LINES = [
 ];
 const SCAN_MS = 3600;
 
-type Phase = "idle" | "loading" | "results" | "error" | "custom";
+type Phase = "idle" | "loading" | "results" | "error";
+type Source = "sample" | "code" | "zip";
+
+/** Counts from `from` down to `to`: the filtering, replayed as a number. */
+function CountDown({ from, to, className }: { from: number; to: number; className?: string }) {
+  const [n, setN] = useState(from);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setN(to); return; }
+    const start = performance.now();
+    const ms = 1100;
+    let raf = 0;
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / ms);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setN(Math.round(from + (to - from) * eased));
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [from, to]);
+  return <span className={className}>{n}</span>;
+}
 
 export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [example, setExample] = useState<ExampleKey | null>(null);
@@ -27,7 +49,9 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [emptyWarn, setEmptyWarn] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  const [results, setResults] = useState<{ raw: number; findings: Finding[] }>({ raw: 0, findings: [] });
+  const [results, setResults] = useState<{ raw: number | null; findings: Finding[] }>({ raw: 0, findings: [] });
+  const [source, setSource] = useState<Source>("sample");
+  const [error, setError] = useState("");
   const [heroFindings, setHeroFindings] = useState<Finding[]>([]);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -38,6 +62,22 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   useEffect(() => {
     getResults("messy").then((r) => setHeroFindings(r.findings));
     return () => timers.current.forEach(clearTimeout);
+  }, []);
+
+  // Content only hides once JS opts in, so the page still reads without it.
+  useEffect(() => {
+    const els = document.querySelectorAll<HTMLElement>("[data-reveal]");
+    document.documentElement.classList.add("js-reveal");
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        e.target.classList.add("is-in");
+        io.unobserve(e.target);
+      }),
+      { rootMargin: "0px 0px -12% 0px" },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
   }, []);
 
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
@@ -62,31 +102,39 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     setEmptyWarn(false);
   };
 
-  const scan = () => {
-    if (!code.trim()) { setEmptyWarn(true); return; }
+  const run = async (src: Source, request: () => Promise<{ raw: number | null; findings: Finding[] }>) => {
     clearTimers();
     setEmptyWarn(false);
     setFilter(null);
     setOpen({});
-
-    if (!isSample) {
-      setPhase("custom");
-      timers.current.push(setTimeout(() => scrollTo("results"), 60));
-      return;
-    }
-
+    setSource(src);
     setPhase("loading");
     setStatusIdx(0);
     const step = SCAN_MS / STATUS_LINES.length;
     for (let i = 1; i < STATUS_LINES.length; i++) {
       timers.current.push(setTimeout(() => setStatusIdx(i), step * i));
     }
-    timers.current.push(setTimeout(async () => {
-      if (forceError) { setPhase("error"); return; }
-      setResults(await getResults(example));
+    try {
+      if (forceError) throw new Error("The scanner did not return a result.");
+      const [r] = await Promise.all([request(), new Promise((ok) => setTimeout(ok, SCAN_MS))]);
+      setResults(r);
       setPhase("results");
-      timers.current.push(setTimeout(() => scrollTo("results"), 80));
-    }, SCAN_MS));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setPhase("error");
+    }
+    clearTimers();
+    timers.current.push(setTimeout(() => scrollTo("results"), 80));
+  };
+
+  const scan = () => {
+    if (!code.trim()) { setEmptyWarn(true); return; }
+    if (isSample) run("sample", () => getResults(example));
+    else run("code", async () => ({ raw: null, findings: await scanZip(zipOne(SNIPPET_FILE, code)) }));
+  };
+
+  const scanUpload = (file: File | undefined) => {
+    if (file) run("zip", async () => ({ raw: null, findings: await scanZip(file) }));
   };
 
   const reset = () => {
@@ -126,21 +174,18 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const total = findings.length || 1;
   const lines = code.split("\n");
 
-  /**
-   * `flagged`: which finding tints each source line (highest severity wins on overlap).
-   * `starts`: the finding that begins on a line, so every finding gets a clickable gutter
-   * marker even when its first line sits inside another finding's span.
-   */
+  // flagged: tint per line (first wins); starts: clickable gutter marker per finding.
   const { flagged, starts } = useMemo(() => {
     const flagged = new Map<number, Finding>();
     const starts = new Map<number, Finding>();
     for (const f of findings) {
+      if (f.line < 1 || (source !== "sample" && (source === "zip" || f.file !== SNIPPET_FILE))) continue;
       if (!starts.has(f.line)) starts.set(f.line, f);
       const span = f.snippet.split("\n").length;
       for (let n = f.line; n < f.line + span; n++) if (!flagged.has(n)) flagged.set(n, f);
     }
     return { flagged, starts };
-  }, [findings]);
+  }, [findings, source]);
 
   const syncScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     const { scrollTop, scrollLeft } = e.currentTarget;
@@ -161,33 +206,17 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
       </header>
 
       <main>
-        <section className="wrap hero">
-          <div className="hero__copy">
-            <h1 className="hero__title">
-              <span className="hero__raw">41 warnings.</span>
-              <span className="hero__real">6 worth fixing.</span>
-            </h1>
-            <p className="hero__sub">
-              Fixr runs four Python scanners over AI-written code, filters out their false alarms, and explains what is left.
-            </p>
-            <div className="hero__ctas">
-              <a className="btn btn--primary" href="#scanner" onClick={(e) => { e.preventDefault(); scrollTo("scanner"); }}>Try the scanner</a>
-              <a className="btn btn--ghost" href="#how" onClick={(e) => { e.preventDefault(); scrollTo("how"); }}>How it works</a>
-            </div>
-          </div>
-
-          <SignalField findings={heroFindings} onPick={pickFromHero} />
-        </section>
+        <Hero findings={heroFindings} onPick={pickFromHero} onNav={scrollTo} />
 
         <Pipeline />
 
         <section className="wrap scanner" id="scanner">
-          <h2 className="h2">Try it on a sample</h2>
-          <p className="scanner__note">
-            These three files have prepared results. Scanning your own code needs the Fixr backend, which this page is not connected to yet.
+          <h2 className="h2" data-reveal>Scan it</h2>
+          <p className="scanner__note" data-reveal style={{ ["--d" as string]: "90ms" }}>
+            The samples have prepared results. Edit one or paste your own Python and it goes to the Fixr backend, or upload a whole project as a .zip.
           </p>
 
-          <div className="tabs" role="group" aria-label="Sample files">
+          <div className="tabs" role="group" aria-label="Sample files" data-reveal style={{ ["--d" as string]: "160ms" }}>
             {(Object.keys(EXAMPLES) as ExampleKey[]).map((k) => (
               <button key={k} className="tab" aria-pressed={example === k} onClick={() => loadExample(k)}>
                 {EXAMPLES[k].label}
@@ -195,6 +224,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
             ))}
           </div>
 
+          <div data-reveal style={{ ["--d" as string]: "230ms" }}>
           <div className={`editor ${loading ? "is-scanning" : ""}`}>
             <div className="editor__bar">
               <span>{example && isSample ? `${example === "minor" ? "profile" : "app"}.py` : "untitled.py"}</span>
@@ -210,14 +240,14 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                     <button
                       key={i}
                       className="gutter__n is-flag"
-                      style={{ ["--c" as string]: SEVERITY_COLOR[start.severity] }}
+                      style={{ ["--c" as string]: SEVERITY_COLOR[start.severity], ["--ln" as string]: i }}
                       onClick={() => openFinding(start.id)}
                       aria-label={`Line ${i + 1}: ${start.title}`}
                     >
                       {i + 1}
                     </button>
                   ) : (
-                    <span key={i} className={`gutter__n ${f ? "is-span" : ""}`} style={f ? { ["--c" as string]: SEVERITY_COLOR[f.severity] } : undefined}>
+                    <span key={i} className={`gutter__n ${f ? "is-span" : ""}`} style={f ? { ["--c" as string]: SEVERITY_COLOR[f.severity], ["--ln" as string]: i } : undefined}>
                       {i + 1}
                     </span>
                   );
@@ -234,7 +264,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                         <div
                           key={i}
                           className={`code__line ${f ? "is-flag" : ""}`}
-                          style={f ? { ["--c" as string]: SEVERITY_COLOR[f.severity] } : undefined}
+                          style={f ? { ["--c" as string]: SEVERITY_COLOR[f.severity], ["--ln" as string]: i } : undefined}
                         >
                           {parts.length ? parts : "​"}
                         </div>
@@ -256,12 +286,17 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
               </div>
             </div>
           </div>
+          </div>
 
           <div className="actions">
             <button className="btn btn--primary" disabled={!code.trim() || loading} onClick={scan}>
               {loading ? "Scanning" : "Scan for vulnerabilities"}
             </button>
-            {(phase === "results" || phase === "error" || phase === "custom") && (
+            <label className={`btn btn--ghost upload ${loading ? "is-disabled" : ""}`}>
+              Upload .zip
+              <input type="file" accept=".zip,application/zip" hidden disabled={loading} onChange={(e) => { scanUpload(e.target.files?.[0]); e.target.value = ""; }} />
+            </label>
+            {(phase === "results" || phase === "error") && (
               <button className="btn btn--ghost" onClick={reset}>Start over</button>
             )}
             {emptyWarn && <span className="warn">Pick a sample or paste some code first.</span>}
@@ -284,26 +319,16 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
             <div className="panel panel--error">
               <div>
                 <div className="panel__big">Scan failed</div>
-                <p>The scanner did not return a result. Run it again.</p>
+                <p>{error}</p>
               </div>
-              <button className="btn btn--ghost" onClick={scan}>Scan again</button>
-            </div>
-          )}
-
-          {phase === "custom" && (
-            <div className="panel panel--note">
-              <div>
-                <div className="panel__big">Samples only, for now</div>
-                <p>This page has prepared results for the three sample files. To scan your own code, run it against the Fixr backend.</p>
-              </div>
-              <button className="btn btn--primary" onClick={() => loadExample("messy")}>Load the messy sample</button>
+              {source !== "zip" && <button className="btn btn--ghost" onClick={scan}>Scan again</button>}
             </div>
           )}
 
           {phase === "results" && findings.length === 0 && (
             <div className="panel panel--clean">
               <div className="panel__big">Nothing to fix</div>
-              <p>No scanner warning in this file survived filtering.</p>
+              <p>No scanner warning survived filtering.</p>
             </div>
           )}
 
@@ -311,12 +336,18 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
             <>
               <div className="summary">
                 <div className="summary__nums">
-                  <span className="summary__raw">{results.raw}</span>
-                  <span className="summary__arrow" aria-hidden="true">&rarr;</span>
-                  <span className="summary__real">{findings.length}</span>
+                  {results.raw !== null && (
+                    <>
+                      <span className="summary__raw">{results.raw}</span>
+                      <span className="summary__arrow" aria-hidden="true">&rarr;</span>
+                    </>
+                  )}
+                  <CountDown className="summary__real" from={results.raw ?? 0} to={findings.length} />
                 </div>
                 <p className="summary__text">
-                  {results.raw} raw warnings, {results.raw - findings.length} dropped as likely noise.{" "}
+                  {results.raw !== null
+                    ? `${results.raw} raw warnings, ${results.raw - findings.length} dropped as likely noise. `
+                    : "Filtered and ranked by the Fixr backend. "}
                   <strong>{findings.length} worth your time.</strong>
                 </p>
               </div>
@@ -373,7 +404,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
 
                     {open[f.id] && (
                       <div className="finding__body">
-                        <p>{f.description}</p>
+                        <p className="finding__desc">{f.description}</p>
                         <div className="snips">
                           <div className="snip snip--bad">
                             <div className="snip__head">
@@ -384,7 +415,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                             </div>
                             <pre>{highlight(f.snippet)}</pre>
                           </div>
-                          <div className="snip snip--fix">
+                          {f.suggestedFix && <div className="snip snip--fix">
                             <div className="snip__head">
                               <span>Suggested fix</span>
                               <button className="copy" onClick={() => copy(f.id + "f", f.suggestedFix)}>
@@ -392,7 +423,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                               </button>
                             </div>
                             <pre>{highlight(f.suggestedFix)}</pre>
-                          </div>
+                          </div>}
                         </div>
                       </div>
                     )}
@@ -407,7 +438,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
       <footer className="footer">
         <div className="wrap footer__inner">
           <span className="wordmark wordmark--sm">FIXR</span>
-          <span>Security triage for AI-written Python. Results on this page are sample data.</span>
+          <span>Security triage for AI-written Python. Sample results are prepared; your own code is scanned live.</span>
         </div>
       </footer>
     </>

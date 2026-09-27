@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { Big_Shoulders, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-// Google merged "Big Shoulders Display" into this variable family. Its optical-size
-// axis selects the display cut automatically at large sizes (font-optical-sizing: auto).
+// "Big Shoulders Display" now lives in this family; the opsz axis picks the display cut.
 const display = Big_Shoulders({
   subsets: ["latin"],
   axes: ["opsz"],
