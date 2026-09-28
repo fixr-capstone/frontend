@@ -2,6 +2,9 @@ import type { Finding, Severity } from "@/lib/findings";
 
 export const SNIPPET_FILE = "untitled.py";
 
+// Inlined at build time by next.config.mjs; the browser calls the backend directly.
+const API = process.env.FIXR_API_URL;
+
 export type ApiFinding = {
   rule_id: string;
   category: "security" | "dependency" | "style";
@@ -104,11 +107,13 @@ export async function scanZip(zip: Blob): Promise<Finding[]> {
   body.append("file", zip, "upload.zip");
   let res: Response;
   try {
-    res = await fetch("/api/v0/repositories", { method: "POST", body });
+    res = await fetch(`${API}/api/v0/repositories`, { method: "POST", body });
   } catch {
     throw new Error("Could not reach the Fixr backend.");
   }
-  if (!res.ok) throw new Error(`The Fixr backend returned ${res.status}. Is it running on port 8000?`);
+  if (res.status === 413) throw new Error("That upload is too large for the scanner.");
+  if (res.status === 429) throw new Error("Too many scans in a short time. Try again in a minute.");
+  if (!res.ok) throw new Error(`The Fixr backend returned ${res.status}.`);
   const data: { findings: ApiFinding[] } = await res.json();
   return data.findings.map(toFinding);
 }
@@ -127,7 +132,7 @@ export async function chat(
 ): Promise<void> {
   let res: Response;
   try {
-    res = await fetch("/api/v0/chat", {
+    res = await fetch(`${API}/api/v0/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages, findings, focus_id: focusId }),
@@ -138,7 +143,7 @@ export async function chat(
     throw new Error("Could not reach the Fixr backend.");
   }
   if (res.status === 404 || res.status === 405) throw new Error(CHAT_OFFLINE);
-  if (!res.ok || !res.body) throw new Error(`The chat returned ${res.status}. Is the backend running on port 8000?`);
+  if (!res.ok || !res.body) throw new Error(res.status === 429 ? "Too many questions in a short time. Try again in a minute." : `The chat returned ${res.status}.`);
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   try {
     for (;;) {
@@ -155,7 +160,8 @@ export const MAX_UPLOAD_MB = 25;
 
 export async function checkBackend(): Promise<boolean> {
   try {
-    return ((await (await fetch("/api/health", { cache: "no-store" })).json()) as { online: boolean }).online;
+    // Long timeout: a sleeping Render instance takes up to a minute to wake.
+    return (await fetch(`${API}/api/v0/health`, { cache: "no-store", signal: AbortSignal.timeout(90_000) })).ok;
   } catch {
     return false;
   }

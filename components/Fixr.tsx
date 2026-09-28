@@ -54,6 +54,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [warn, setWarn] = useState("");
   const [online, setOnline] = useState<boolean | null>(null);
+  const [waking, setWaking] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -71,7 +72,11 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const gutterRef = useRef<HTMLDivElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  useEffect(() => { checkBackend().then(setOnline); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => setWaking(true), 4000);
+    checkBackend().then(setOnline).finally(() => clearTimeout(t));
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     if (phase !== "loading") return;
@@ -280,7 +285,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
             The samples have prepared results. Edit one or paste your own Python and it goes to the Fixr backend, or drop in a whole project as a .zip.
           </p>
           <p className={`live live--${online === null ? "wait" : online ? "on" : "off"}`} data-reveal style={{ ["--d" as string]: "120ms" }}>
-            {online === null ? "Checking the live scanner" : online ? "Live scanner online" : "Live scanner offline. The samples still work."}
+            {online === null ? (waking ? "Waking the live scanner, this can take a minute" : "Checking the live scanner") : online ? "Live scanner online" : "Live scanner offline. The samples still work."}
           </p>
 
           <div className="tabs" role="group" aria-label="Sample files" data-reveal style={{ ["--d" as string]: "160ms" }}>

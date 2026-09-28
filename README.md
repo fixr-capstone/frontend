@@ -15,6 +15,13 @@ npm run dev
 Open http://localhost:3000. For live scans, run the backend (`rest_backend`) on port 8000,
 or point the page elsewhere with `FIXR_API_URL=http://host:port npm run dev`.
 
+## Deploy (Vercel)
+
+Set `FIXR_API_URL` to the backend's public URL (for example `https://fixr-api.onrender.com`).
+The build fails on Vercel without it. The backend must allow the Vercel domain in
+`FIXR_CORS_ORIGINS`. A production build sends a Content-Security-Policy whose `connect-src`
+is that URL.
+
 ## Files
 
 - `app/layout.tsx`: fonts (Big Shoulders Display, Space Grotesk, JetBrains Mono) and metadata
@@ -22,7 +29,7 @@ or point the page elsewhere with `FIXR_API_URL=http://host:port npm run dev`.
 - `components/Fixr.tsx`: the page. Header, hero, scanner with a flagged-line gutter, results
 - `components/Hero.tsx`: the hero. A scan line sweeps the messy sample's raw warnings, crossing out the headline as it goes; false alarms and style notes collapse and the findings worth fixing rise, numbered by priority
 - `components/Logo.tsx`: code brackets around one mint bar (the line that matters) and the wordmark; `app/icon.svg` is the same mark as the favicon
-- `app/api/health/route.ts`: tells the page whether the backend is up, for the live-scanner status
+- `app/error.tsx`: the error page for unexpected runtime errors
 - `app/not-found.tsx`: the 404 page
 - `components/Pipeline.tsx`: how it works. The section pins while you scroll and runs scan, filter, rank and explain over the real `app.py` scan, line by line
 - `components/XRay.tsx`: results minimap. Each file drawn one bar per line, findings lit by severity and numbered by priority, linked to the list
@@ -35,8 +42,10 @@ or point the page elsewhere with `FIXR_API_URL=http://host:port npm run dev`.
 
 ## Backend
 
-`next.config.mjs` proxies `/api/v0/*` to the backend, so it needs no CORS. `lib/api.ts`
-adapts the response: pasted code is sent as a one-file ZIP, `unknown` severity shows as
+The browser calls the backend directly at `FIXR_API_URL` (inlined at build time), which avoids
+Vercel's proxy body-size and timeout limits; the backend allows the page's origin with CORS.
+The live-scanner status polls `GET /api/v0/health` with a long timeout, because a sleeping
+Render instance takes up to a minute to wake. `lib/api.ts` adapts the scan response: pasted code is sent as a one-file ZIP, `unknown` severity shows as
 `low`, the fix code block is pulled out of `metadata.explanation`, and the raw count
 (which the backend does not return) is left out of the summary.
 
@@ -49,8 +58,7 @@ summaries, rotate leaked secrets). It is built in the browser and needs no backe
 
 ## Chat
 
-The "Ask Fixr" drawer (`components/Chat.tsx`) talks to this endpoint, served by the backend's
-`feature/chat` branch (not yet on main). Without it the drawer shows "Chat is not switched on yet".
+The "Ask Fixr" drawer (`components/Chat.tsx`) talks to this endpoint on the backend. Without it the drawer shows "Chat is not switched on yet".
 
 `POST /api/v0/chat`, JSON body:
 
@@ -66,8 +74,8 @@ The "Ask Fixr" drawer (`components/Chat.tsx`) talks to this endpoint, served by 
 - Stateless: `messages` is the whole conversation so far, ending with the new question.
 - `focus_id` is the finding the user asked about, or `null` for the whole scan.
 - Reply: the answer as a `text/plain` stream (chunked). Send `Cache-Control: no-cache, no-transform`,
-  otherwise the Next.js proxy compresses the response and the reply arrives in one piece.
-- A 404 or 405 shows the "not switched on" message; any other error status shows it to the user.
+  otherwise a compressing proxy buffers the response and the reply arrives in one piece.
+- A 429 means the rate limit was hit. A 404 or 405 shows the "not switched on" message; any other error status shows it to the user.
 
 ## Motion
 
