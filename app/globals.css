@@ -71,8 +71,8 @@ button { font: inherit; color: inherit; }
 /* header ------------------------------------------------------------------- */
 .header {
   position: sticky; top: 0; z-index: 30;
-  background: rgba(19, 18, 24, 0.86);
-  backdrop-filter: blur(12px);
+  /* near-opaque instead of backdrop-filter: a blur re-renders what is under the header every scroll frame */
+  background: rgba(19, 18, 24, 0.96);
   border-bottom: 1px solid var(--line);
 }
 .header__inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
@@ -593,12 +593,17 @@ button { font: inherit; color: inherit; }
   transform: translateY(-160%); transition: transform 200ms var(--ease);
 }
 .skip:focus { transform: none; }
-.live { display: inline-flex; align-items: center; gap: 10px; margin: 16px 0 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; color: var(--muted); }
+.live { position: relative; display: inline-flex; align-items: center; gap: 10px; margin: 16px 0 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; color: var(--muted); }
 .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
-.live--on::before { background: var(--mint); animation: ping 2.2s ease-out infinite; }
+.live--on::before { background: var(--mint); }
+/* the ring is its own layer scaled with transform; an animated box-shadow repaints every frame */
+.live--on::after {
+  content: ""; position: absolute; left: 0; top: 50%; width: 8px; height: 8px; margin-top: -4px;
+  border-radius: 50%; background: var(--mint); pointer-events: none; animation: ping 2.2s ease-out infinite;
+}
 .live--off::before { background: #ff9f45; }
 .live--wait::before { animation: pulse 1.2s ease-in-out infinite; }
-@keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mint) 60%, transparent); } 70%, 100% { box-shadow: 0 0 0 7px transparent; } }
+@keyframes ping { 0% { transform: scale(1); opacity: 0.6; } 70%, 100% { transform: scale(2.75); opacity: 0; } }
 .editor { position: relative; }
 .editor.is-drop { border-color: var(--mint); }
 .drop {
@@ -708,9 +713,9 @@ kbd {
 
 .chat-scrim {
   position: fixed; inset: 0; z-index: 40; background: rgba(8, 8, 12, 0.6);
-  backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity 320ms;
+  opacity: 0; pointer-events: none; transition: opacity 320ms;
 }
-.chat-scrim.is-open { opacity: 1; pointer-events: auto; }
+.chat-scrim.is-open { opacity: 1; pointer-events: auto; backdrop-filter: blur(2px); }
 .chat {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 41; width: min(500px, 100vw);
   display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto;

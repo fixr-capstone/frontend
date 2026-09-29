@@ -56,6 +56,7 @@ const STAGES = [
 
 export default function Pipeline() {
   const ref = useRef<HTMLElement>(null);
+  const fill = useRef<HTMLElement>(null);
   const [stage, setStage] = useState(0);
 
   useEffect(() => {
@@ -67,7 +68,8 @@ export default function Pipeline() {
         if (!el) return;
         const travel = el.offsetHeight - window.innerHeight;
         const p = travel > 0 ? Math.min(1, Math.max(0, -el.getBoundingClientRect().top / travel)) : 1;
-        el.style.setProperty("--p", p.toFixed(4));
+        // on the fill itself: set on the section, it restyled every line of the console each frame
+        fill.current?.style.setProperty("--p", p.toFixed(4));
         setStage(p <= 0 ? -1 : Math.min(STAGES.length - 1, Math.floor(p * STAGES.length)));
       });
     };
@@ -108,7 +110,7 @@ export default function Pipeline() {
             {STAGES.map((x, i) => (
               <span key={x.verb} className={i <= stage ? "is-on" : ""}>{x.verb}</span>
             ))}
-            <i className="console__fill" />
+            <i className="console__fill" ref={fill} />
           </div>
           <div className="console__file">app.py <span>messy sample, real scan output</span></div>
           <div className="console__code">
