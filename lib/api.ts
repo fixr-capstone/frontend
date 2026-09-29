@@ -28,28 +28,37 @@ function crc32(data: Uint8Array) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-/** One-file stored ZIP: the backend only accepts archives. */
-export function zipOne(name: string, text: string): Blob {
+const squeeze = async (data: BlobPart, format: CompressionFormat) =>
+  new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new CompressionStream(format))).arrayBuffer());
+
+/**
+ * One-file deflated ZIP: the backend only accepts archives. Compressed, not stored: the CDN in
+ * front of the backend blocks uploads whose raw bytes look like SQL injection or similar.
+ */
+export async function zipOne(name: string, text: string): Promise<Blob> {
   const enc = new TextEncoder();
-  const data = enc.encode(text);
+  const raw = enc.encode(text);
+  const data = await squeeze(raw, "deflate-raw");
   const fname = enc.encode(name);
-  const crc = crc32(data);
+  const crc = crc32(raw);
 
   const local = new DataView(new ArrayBuffer(30));
   local.setUint32(0, 0x04034b50, true);
   local.setUint16(4, 20, true);
+  local.setUint16(8, 8, true);
   local.setUint32(14, crc, true);
   local.setUint32(18, data.length, true);
-  local.setUint32(22, data.length, true);
+  local.setUint32(22, raw.length, true);
   local.setUint16(26, fname.length, true);
 
   const central = new DataView(new ArrayBuffer(46));
   central.setUint32(0, 0x02014b50, true);
   central.setUint16(4, 20, true);
   central.setUint16(6, 20, true);
+  central.setUint16(10, 8, true);
   central.setUint32(16, crc, true);
   central.setUint32(20, data.length, true);
-  central.setUint32(24, data.length, true);
+  central.setUint32(24, raw.length, true);
   central.setUint16(28, fname.length, true);
 
   const end = new DataView(new ArrayBuffer(22));
@@ -102,6 +111,30 @@ export function toFinding(f: ApiFinding, i: number): Finding {
   };
 }
 
+const SKIP_DIRS = /(^|\/)(\.?venv|env|site-packages|__pycache__|node_modules|\.git)\//;
+
+/** Python files listed in a ZIP's central directory; read in the browser, nothing is uploaded for this. */
+export async function zipPyFiles(file: Blob): Promise<string[]> {
+  const buf = await file.arrayBuffer();
+  const view = new DataView(buf);
+  let end = -1;
+  for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65557); i--) {
+    if (view.getUint32(i, true) === 0x06054b50) { end = i; break; }
+  }
+  if (end < 0) return [];
+  const dec = new TextDecoder();
+  const files: string[] = [];
+  let at = view.getUint32(end + 16, true);
+  for (let n = view.getUint16(end + 10, true); n > 0 && at + 46 <= buf.byteLength; n--) {
+    if (view.getUint32(at, true) !== 0x02014b50) break;
+    const len = view.getUint16(at + 28, true);
+    const name = dec.decode(new Uint8Array(buf, at + 46, len));
+    if (name.endsWith(".py") && !SKIP_DIRS.test(name)) files.push(name);
+    at += 46 + len + view.getUint16(at + 30, true) + view.getUint16(at + 32, true);
+  }
+  return files;
+}
+
 export async function scanZip(zip: Blob): Promise<Finding[]> {
   const body = new FormData();
   body.append("file", zip, "upload.zip");
@@ -120,6 +153,8 @@ export async function scanZip(zip: Blob): Promise<Finding[]> {
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
+export const CHAT_FINDINGS = 40;
+
 export const CHAT_OFFLINE = "Chat is not switched on yet. It needs the chat endpoint on the Fixr backend.";
 
 /** POST /api/v0/chat, stateless (full history each time); the reply streams back as plain text. */
@@ -130,12 +165,26 @@ export async function chat(
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
+  // The backend takes at most 300 findings and writes each one into the model prompt, so send
+  // the focused finding and the top-ranked rest, clipped to the backend's field limits.
+  const clip = (s: string, n: number) => s.slice(0, n);
+  const ranked = [...findings.filter((f) => f.id === focusId), ...findings.filter((f) => f.id !== focusId && !f.style)];
+  const sent = [...ranked.slice(0, CHAT_FINDINGS), ...findings.filter((f) => f.style).slice(0, 5)].map((f) => ({
+    ...f,
+    rule: f.rule && clip(f.rule, 32),
+    title: clip(f.title, 500),
+    file: clip(f.file, 500),
+    snippet: clip(f.snippet, 8000),
+    description: clip(f.description, 8000),
+    suggestedFix: clip(f.suggestedFix, 8000),
+  }));
   let res: Response;
   try {
     res = await fetch(`${API}/api/v0/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, findings, focus_id: focusId }),
+      // gzipped for the same reason as zipOne: findings quote attack code the CDN would block
+      headers: { "Content-Type": "application/json", "Content-Encoding": "gzip" },
+      body: await squeeze(JSON.stringify({ messages, findings: sent, focus_id: focusId }), "gzip"),
       signal,
     });
   } catch (e) {

@@ -9,7 +9,8 @@ import Logo from "@/components/Logo";
 import XRay from "@/components/XRay";
 import { buildFixPrompt } from "@/lib/fixPrompt";
 import { Markdown } from "@/lib/markdown";
-import { MAX_UPLOAD_MB, SNIPPET_FILE, checkBackend, scanZip, zipOne } from "@/lib/api";
+import ZipView from "@/components/ZipView";
+import { MAX_UPLOAD_MB, SNIPPET_FILE, checkBackend, scanZip, zipOne, zipPyFiles } from "@/lib/api";
 import Pipeline from "@/components/Pipeline";
 
 const SEVERITIES: Severity[] = ["critical", "high", "medium", "low"];
@@ -55,6 +56,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [warn, setWarn] = useState("");
   const [online, setOnline] = useState<boolean | null>(null);
   const [waking, setWaking] = useState(false);
+  const [zip, setZip] = useState<{ name: string; size: number; files: string[] } | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -160,13 +162,15 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const scan = () => {
     if (!code.trim()) { setWarn("Pick a sample or paste some code first."); return; }
     if (isSample) run("sample", () => getResults(example));
-    else run("code", async () => ({ raw: null, findings: await scanZip(zipOne(SNIPPET_FILE, code)) }));
+    else run("code", async () => ({ raw: null, findings: await scanZip(await zipOne(SNIPPET_FILE, code)) }));
   };
 
   const scanUpload = (file: File | undefined) => {
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".zip")) { setWarn("Upload a .zip of your project."); return; }
     if (file.size > MAX_UPLOAD_MB * 1024 * 1024) { setWarn(`That .zip is over ${MAX_UPLOAD_MB} MB. Leave out virtual environments and data files.`); return; }
+    setZip({ name: file.name, size: file.size, files: [] });
+    zipPyFiles(file).then((files) => setZip({ name: file.name, size: file.size, files })).catch(() => {});
     run("zip", async () => ({ raw: null, findings: await scanZip(file) }));
   };
 
@@ -224,6 +228,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   };
 
   const loading = phase === "loading";
+  const zipView = source === "zip" && zip !== null && phase !== "idle" ? zip : null;
   const all = phase === "results" ? results.findings : [];
   const findings = all.filter((f) => !f.style);
   const notes = all.filter((f) => f.style);
@@ -303,11 +308,11 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
             onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }}
             onDrop={onDrop}
           >
-          <div className={`editor ${loading ? "is-scanning" : ""} ${dragging ? "is-drop" : ""}`}>
+          <div className={`editor ${loading && source !== "zip" ? "is-scanning" : ""} ${dragging ? "is-drop" : ""}`}>
             {dragging && <div className="drop" aria-hidden="true"><b>Drop to scan</b><span>A .zip scans the project. A .py file opens here.</span></div>}
             <div className="editor__bar">
-              <span>{example && isSample ? `${example === "minor" ? "profile" : "app"}.py` : "untitled.py"}</span>
-              <span>{lines.length} {lines.length === 1 ? "line" : "lines"}</span>
+              <span>{zipView ? zipView.name : example && isSample ? `${example === "minor" ? "profile" : "app"}.py` : "untitled.py"}</span>
+              <span>{zipView ? zipView.size < 1048576 ? `${Math.ceil(zipView.size / 1024)} KB` : `${(zipView.size / 1048576).toFixed(1)} MB` : `${lines.length} ${lines.length === 1 ? "line" : "lines"}`}</span>
             </div>
 
             <div className="editor__body">
@@ -362,8 +367,9 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                   onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); if (!loading) scan(); } }}
                   onScroll={syncScroll}
                 />
-                {loading && <span className="beam" aria-hidden="true" />}
+                {loading && !zipView && <span className="beam" aria-hidden="true" />}
               </div>
+              {zipView && <ZipView files={zipView.files} live={loading} findings={phase === "results" ? findings : null} />}
             </div>
           </div>
           </div>

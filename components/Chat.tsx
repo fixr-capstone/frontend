@@ -121,7 +121,7 @@ export default function Chat({
             </>
           ) : (
             <>
-              <span className="chat__ctitle">All {real.length} findings</span>
+              <span className="chat__ctitle">{real.length === 1 ? "The 1 finding" : `All ${real.length} findings`}</span>
               <span className="chat__counts">
                 {counts.map(([s, n]) => <span key={s} style={{ color: SEVERITY_COLOR[s] }}>{n} {s}</span>)}
               </span>
