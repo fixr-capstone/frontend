@@ -26,12 +26,15 @@ function byRule(items: Finding[]) {
 }
 
 // Titles like "'pydantic' imported but ..." name one package; a group needs the pattern and every name.
-const generic = (title: string) => title.replace(/'[^']+'/g, "'…'");
-function names(items: Finding[]) {
-  const all = [...new Set(items.flatMap((f) => [...f.title.matchAll(/'([^']+)'/g)].map((m) => m[1])))];
-  if (all.length < 2) return "";
-  return all.slice(0, 20).map((n) => `\`${n}\``).join(", ") + (all.length > 20 ? ` and ${all.length - 20} more` : "");
-}
+// Only identifier-like quotes count: flake8's "whitespace before ':'" quotes punctuation, not a name.
+const NAME = /'([A-Za-z_][\w.-]*)'/g;
+const generic = (title: string) => title.replace(NAME, "'…'");
+const namesOf = (items: Finding[]) => [...new Set(items.flatMap((f) => [...f.title.matchAll(NAME)].map((m) => m[1])))];
+const codeList = (names: string[], max = 20) =>
+  names.slice(0, max).map((n) => `\`${n}\``).join(", ") + (names.length > max ? ` and ${names.length - max} more` : "");
+// Folders and modules of the scanned project: deptry reports these as missing packages when it misreads the root.
+const localNames = (files: string[]) =>
+  new Set(files.flatMap((file) => file.replace(/\.py$/, "").split("/")));
 
 function locations(items: Finding[]) {
   const shown = items.slice(0, LOCATIONS).map(where).join(", ");
@@ -47,6 +50,7 @@ export function buildFixPrompt(findings: Finding[], notes: Finding[]): string {
   const detailed = worthDetail.slice(0, DETAILED);
   const rest = real.filter((f) => !detailed.includes(f));
   const hasSecret = detailed.some((f) => f.rule && SECRET_RULES.has(f.rule));
+  const local = localNames([...findings, ...notes].map((f) => f.file));
 
   const out = [
     "# Security fixes for this project",
@@ -90,9 +94,11 @@ export function buildFixPrompt(findings: Finding[], notes: Finding[]): string {
     out.push("## Lower-priority issues, grouped by type", "", "Each group is one pattern. Fix a group the same way everywhere, or explain why it is safe here.", "");
     for (const [rule, items] of byRule(rest)) {
       const tests = items.filter((f) => isTest(f.file)).length;
-      const named = names(items);
-      out.push(`### ${rule}: ${named ? generic(items[0].title) : items[0].title} (${items.length} ${items.length === 1 ? "place" : "places"})`, "", `- Severity: ${items[0].severity}`);
-      if (named) out.push(`- Names: ${named}`);
+      const named = namesOf(items);
+      const own = named.filter((n) => local.has(n));
+      out.push(`### ${rule}: ${named.length > 1 ? generic(items[0].title) : items[0].title} (${items.length} ${items.length === 1 ? "place" : "places"})`, "", `- Severity: ${items[0].severity}`);
+      if (named.length > 1) out.push(`- Names: ${codeList(named)}`);
+      if (own.length) out.push(`- ${codeList(own)} ${own.length === 1 ? "is a folder or module of this project, not an installed package" : "are folders or modules of this project, not installed packages"}. Ignore ${own.length === 1 ? "that one" : "those"}; do not add ${own.length === 1 ? "it" : "them"} as dependencies.`);
       out.push(`- Where: ${locations(items)}`);
       if (tests === items.length) out.push("- All of these are in test files, where this is usually expected. Leave them unless the person asks.");
       else if (tests) out.push(`- ${tests} of these are in test files, where this is usually expected.`);
@@ -107,8 +113,20 @@ export function buildFixPrompt(findings: Finding[], notes: Finding[]): string {
   }
 
   if (notes.length) {
-    out.push("## Optional style clean-up", "", "These are not security problems. Only fix them if the person asks.", "");
-    for (const [rule, items] of byRule(notes)) out.push(`- ${rule}: ${names(items) ? generic(items[0].title) : items[0].title} (${items.length}): ${locations(items)}`);
+    // Locations are left out: style is a formatter's job, and listing thousands of lines buries the security work.
+    const groups = byRule(notes);
+    out.push(
+      "## Optional style clean-up",
+      "",
+      `The linter also left ${notes.length} style ${notes.length === 1 ? "note" : "notes"}. These are not security problems. Do not fix them by hand; if the person wants them gone, suggest running a formatter such as \`ruff format\` or \`black\`, as a separate change.`,
+      "",
+    );
+    groups.slice(0, 8).forEach(([rule, items]) => {
+      // "line too long (117 > 79 characters)" describes one line, not the group
+      const title = (namesOf(items).length > 1 ? generic(items[0].title) : items[0].title).replace(/\s*\(\d+ > \d+ characters\)/, "");
+      out.push(`- ${rule}: ${title} (${items.length})`);
+    });
+    if (groups.length > 8) out.push(`- and ${groups.length - 8} other kinds`);
     out.push("");
   }
 
