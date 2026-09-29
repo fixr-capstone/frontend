@@ -10,6 +10,7 @@ import XRay from "@/components/XRay";
 import { buildFixPrompt } from "@/lib/fixPrompt";
 import { Markdown } from "@/lib/markdown";
 import ZipView from "@/components/ZipView";
+import { ServerPill, WakeNote } from "@/components/ServerStatus";
 import { MAX_UPLOAD_MB, SNIPPET_FILE, checkBackend, scanZip, zipOne, zipPyFiles } from "@/lib/api";
 import Pipeline from "@/components/Pipeline";
 
@@ -55,7 +56,6 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [warn, setWarn] = useState("");
   const [online, setOnline] = useState<boolean | null>(null);
-  const [waking, setWaking] = useState(false);
   const [zip, setZip] = useState<{ name: string; size: number; files: string[] } | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -73,10 +73,18 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const gutterRef = useRef<HTMLDivElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
+  // A sleeping free-tier server can take a minute; keep asking for three before calling it offline.
   useEffect(() => {
-    const t = setTimeout(() => setWaking(true), 4000);
-    checkBackend().then(setOnline).finally(() => clearTimeout(t));
-    return () => clearTimeout(t);
+    let alive = true;
+    const start = Date.now();
+    (async () => {
+      while (alive && Date.now() - start < 180_000) {
+        if (await checkBackend()) { if (alive) setOnline(true); return; }
+        await new Promise((ok) => setTimeout(ok, 4000));
+      }
+      if (alive) setOnline(false);
+    })();
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {
@@ -283,6 +291,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
         <div className="wrap header__inner">
           <a href="#" className="logo-link" aria-label="Fixr, back to top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Logo /></a>
           <nav className="header__nav">
+            <ServerPill online={online} onClick={() => scrollTo("scanner")} />
             <a href="#how" onClick={(e) => { e.preventDefault(); scrollTo("how"); }}>How it works</a>
             <a className="btn btn--sm" href="#scanner" onClick={(e) => { e.preventDefault(); scrollTo("scanner"); }}>Try the scanner</a>
           </nav>
@@ -299,9 +308,9 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
           <p className="scanner__note" data-reveal style={{ ["--d" as string]: "90ms" }}>
             The samples have prepared results. Edit one or paste your own Python and it goes to the Fixr backend, or drop in a whole project as a .zip.
           </p>
-          <p className={`live live--${online === null ? "wait" : online ? "on" : "off"}`} data-reveal style={{ ["--d" as string]: "120ms" }}>
-            {online === null ? (waking ? "Waking the live scanner, this can take a minute" : "Checking the live scanner") : online ? "Live scanner online" : "Live scanner offline. The samples still work."}
-          </p>
+          <div data-reveal style={{ ["--d" as string]: "120ms" }}>
+            <WakeNote online={online} />
+          </div>
 
           <div className="tabs" role="group" aria-label="Sample files" data-reveal style={{ ["--d" as string]: "160ms" }}>
             {(Object.keys(EXAMPLES) as ExampleKey[]).map((k) => (
