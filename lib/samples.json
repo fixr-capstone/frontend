@@ -1,6 +1,6 @@
 {
  "messy": {
-  "raw": 17,
+  "raw": 16,
   "dropped": [
    {
     "rule_id": "B324",
@@ -22,7 +22,7 @@
     "confidence": "MEDIUM",
     "metadata": {
      "test_name": "hardcoded_password_string",
-     "explanation": "The string is an actual secret that can be used to authenticate to the external API. By keeping it in the source code it becomes public when the repository is shared or pushed to a VCS, allowing anyone to impersonate the owner or misuse the API.  \nFix it by storing the token outside the code and loading it at runtime, e.g.:\n\n```python\nimport os\nAPI_TOKEN = os.getenv(\"API_TOKEN\")  # read from environment or secret manager\n\nif not API_TOKEN:\n    raise ValueError(\"API_TOKEN not set\")\n```\n\nThen set the `API_TOKEN` variable in the deployment environment or in a secure secret store. After moving it out, treat the previous value as leaked and rotate it immediately."
+     "explanation": "The literal token is stored in the source file, so anyone who can read the repository (including anyone who clones the repo or pulls from a CI server) can use it to authenticate to the service. If the token is ever pushed to a public repository or shared inadvertently, the attacker can immediately access the account or data associated with that key, leading to data loss or service abuse.  \n\nMove the value out of the code and retrieve it at runtime. For example, read it from an environment variable and fail early if it\u2019s missing.  \n\n```python\n# app.py\nimport os\n\n# The token should be supplied by the deployment environment\nAPI_TOKEN = os.getenv(\"API_TOKEN\")\nif not API_TOKEN:\n    raise RuntimeError(\"API_TOKEN environment variable is required\")\n```"
     },
     "tp_probability": 1.0,
     "priority_score": 3.0
@@ -41,7 +41,7 @@
     "confidence": "LOW",
     "metadata": {
      "test_name": "hardcoded_sql_expressions",
-     "explanation": "The code builds the SQL command by concatenating the `user_id` directly into the string. If `user_id` originates from user input or any untrusted source, an attacker could inject arbitrary SQL (e.g., `1' OR '1'='1`) and retrieve or modify data.  \n\n**Fix:** Use a parameterized query. Pass the user-provided value separately so the driver handles escaping.  \n\n```python\ndef get_user(user_id):\n    query = \"SELECT * FROM users WHERE id = ?\"\n    result = db.execute(query, (user_id,))\n    return result\n```\n\nReplace `?` with the placeholder syntax required by your database driver (e.g., `%s` for psycopg2). This prevents the injected value from being executed as part of the SQL command."
+     "explanation": "The query builds a literal SQL string by concatenating the `user_id` value, so an attacker could inject arbitrary SQL through a specially crafted `user_id`.  \nFix by using a parameterized query so the driver handles escaping:\n\n```python\ndef get_user(user_id):\n    query = \"SELECT * FROM users WHERE id = %s\"\n    result = db.execute(query, (user_id,))  # or '?' for SQLite\n    return result\n```\n\nThis ensures `user_id` is treated as a data value, not executable code."
     },
     "tp_probability": 0.9306626915931702,
     "priority_score": 2.7919880747795105
@@ -60,7 +60,7 @@
     "confidence": "MEDIUM",
     "metadata": {
      "test_name": "hardcoded_sql_expressions",
-     "explanation": "The function builds the SQL by concatenating the raw `user_id`. If an attacker passes something like `\"1; DROP TABLE users\"`, the `DELETE` statement will execute that extra command, deleting all records.  \n\nFix by using a parameterised query so the driver handles escaping:\n\n```python\ndef delete_account(user_id):\n    # Ensure user_id is an integer before passing it as a parameter\n    user_id = int(user_id)\n    db.execute(\"DELETE FROM users WHERE id = ?\", (user_id,))\n    return {\"status\": \"deleted\"}\n```\n\nNow the `user_id` value is sent separately and cannot alter the SQL command."
+     "explanation": "`user_id` is concatenated straight into the SQL string. If an attacker supplies something like `1; DROP TABLE users; --`, the statement sent to the database becomes two commands, potentially deleting your table. The driver sees the entire string as a single query, so no validation occurs.\n\n**Fix:** Use a parameterized statement so the driver treats the value as data, not code.\n\n```python\ndef delete_account(user_id):\n    # Ensure user_id is an integer or cast it if necessary\n    db.execute(\"DELETE FROM users WHERE id = ?\", (int(user_id),))\n    return {\"status\": \"deleted\"}\n```\n\nReplace `?` (or `%s` for some drivers) with the appropriate placeholder for your database library. This prevents injection because the value is bound separately from the query text."
     },
     "tp_probability": 0.9306626915931702,
     "priority_score": 2.7919880747795105
@@ -79,7 +79,7 @@
     "confidence": "LOW",
     "metadata": {
      "test_name": "request_without_timeout",
-     "explanation": "The call to `requests.get` can block indefinitely if the remote service is slow or unresponsive, tying up the process or thread and potentially causing a denial\u2011of\u2011service.  \nAlso, the bare `except: pass` swallows all errors, making debugging hard and hiding timeouts, connection errors, or invalid responses.\n\n**Fix**  \n* Add a timeout argument.  \n* Catch only the exceptions you expect (`requests.exceptions.RequestException`).  \n* Log or propagate the error instead of silently swallowing it.\n\n```python\nimport logging\nimport requests\n\ndef fetch_external_data(url: str) -> dict | None:\n    try:\n        resp = requests.get(\n            url,\n            headers={\"Authorization\": API_TOKEN},\n            timeout=5.0   # seconds\n        )\n        resp.raise_for_status()\n        return resp.json()\n    except requests.exceptions.RequestException as e:\n        logging.error(\"Failed to fetch %s: %s\", url, e)\n        return None\n```\n\nThis ensures the call fails fast, resources aren\u2019t tied up, and errors are observable."
+     "explanation": "The request can block forever if the remote host stalls or the network is slow, exhausting your process\u2019s resources and opening the door to a denial\u2011of\u2011service. Add a timeout and handle only relevant exceptions.\n\n```python\nimport requests\nimport logging\n\ndef fetch_external_data(url):\n    try:\n        response = requests.get(url,\n                                headers={\"Authorization\": API_TOKEN},\n                                timeout=5)          # seconds\n        response.raise_for_status()\n        return response.json()\n    except requests.RequestException as e:      # covers timeouts, DNS, HTTP errors\n        logging.error(f\"Failed to fetch {url}: {e}\")\n        return None\n```\nThis guarantees the call returns within 5\u202fs and logs any failure instead of silently ignoring it."
     },
     "tp_probability": 1.0,
     "priority_score": 2.0
@@ -98,7 +98,7 @@
     "confidence": "HIGH",
     "metadata": {
      "test_name": "blacklist",
-     "explanation": "The `random.random()` call is only used to add jitter to the retry delay. Since this value does not influence a token, session ID, password reset key, or any other cryptographic decision, it is not a security\u2011relevant use of randomness. Therefore, this Bandit warning is a false positive for this context; the `random` module is adequate here. No change to the code is required."
+     "explanation": "The random number is only used to add jitter to an exponential\u2011backoff delay, not to create a token or secret. Jitter is a non\u2011security concern, so `random.random()` is acceptable. The warning is a false positive in this context; no change is required. If this value were ever used to generate a session ID, password reset key, or similar, replace it with `secrets.randbelow()` or `secrets.SystemRandom().random()`."
     },
     "tp_probability": 0.9983861446380615,
     "priority_score": 1.996772289276123
@@ -117,24 +117,6 @@
     "confidence": "HIGH",
     "metadata": {
      "test_name": "try_except_pass"
-    },
-    "tp_probability": 1.0,
-    "priority_score": 1.0
-   },
-   {
-    "tool": "deptry",
-    "category": "dependency",
-    "rule_id": "DEP003",
-    "severity": "low",
-    "file_path": "app.py",
-    "line": 4,
-    "column": 8,
-    "message": "'requests' imported but it is a transitive dependency",
-    "snippet": null,
-    "cwe_id": null,
-    "confidence": null,
-    "metadata": {
-     "module": "requests"
     },
     "tp_probability": 1.0,
     "priority_score": 1.0
@@ -286,7 +268,7 @@
   ]
  },
  "minor": {
-  "raw": 3,
+  "raw": 2,
   "dropped": [],
   "findings": [
    {
@@ -303,28 +285,10 @@
     "confidence": "LOW",
     "metadata": {
      "test_name": "request_without_timeout",
-     "explanation": "The call can hang indefinitely if the remote service is slow or unresponsive, which may tie up the process and create a denial\u2011of\u2011service vector.  \nAdd a timeout to bound how long you wait for a response.\n\n```python\nimport requests\n\ndef fetch_profile(user_id):\n    url = f\"https://api.internal/users/{user_id}\"\n    resp = requests.get(url, timeout=5)  # timeout in seconds\n    resp.raise_for_status()\n    return resp.json()\n```"
+     "explanation": "The call to `requests.get` has no `timeout` argument, so if the external service hangs or is slow, your function will block forever. In a web service or long\u2011running script this can exhaust threads or processes, making the application unresponsive and vulnerable to a denial\u2011of\u2011service scenario.  \n\n**Fix** \u2013 supply a reasonable timeout (seconds). If you need a different timeout per environment, consider using a configuration variable.\n\n```python\ndef fetch_profile(user_id):\n    resp = requests.get(\n        f\"https://api.internal/users/{user_id}\",\n        timeout=5.0          # 5\u2011second timeout, adjust as needed\n    )\n    resp.raise_for_status()\n    return resp.json()\n```\n\nIf the timeout needs to be dynamic, replace `5.0` with a variable or configuration value. This guarantees the call will fail fast rather than hang indefinitely."
     },
     "tp_probability": 1.0,
     "priority_score": 2.0
-   },
-   {
-    "tool": "deptry",
-    "category": "dependency",
-    "rule_id": "DEP003",
-    "severity": "low",
-    "file_path": "profile.py",
-    "line": 1,
-    "column": 8,
-    "message": "'requests' imported but it is a transitive dependency",
-    "snippet": null,
-    "cwe_id": null,
-    "confidence": null,
-    "metadata": {
-     "module": "requests"
-    },
-    "tp_probability": 1.0,
-    "priority_score": 1.0
    },
    {
     "tool": "flake8",
