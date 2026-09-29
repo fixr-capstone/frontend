@@ -378,7 +378,7 @@ button { font: inherit; color: inherit; }
 .code__line.is-flag { background: color-mix(in srgb, var(--c) 12%, transparent); }
 /* results land in the code top to bottom, the way you would read them */
 .code__line.is-flag, .gutter__n.is-flag, .gutter__n.is-span {
-  animation: flag-in 520ms var(--ease) both; animation-delay: calc(var(--ln) * 40ms);
+  animation: flag-in 520ms var(--ease) both; animation-delay: calc(min(var(--ln), 30) * 40ms);
 }
 @keyframes flag-in { from { background-color: transparent; box-shadow: inset 0 0 0 transparent; } }
 .editor__input {
@@ -475,7 +475,7 @@ button { font: inherit; color: inherit; }
 .xr--hit .xr__bar {
   min-width: 16%; background: var(--c);
   animation: xr-in 500ms var(--ease) both, xr-hit 900ms var(--ease) both;
-  animation-delay: calc(var(--ln) * 12ms), calc(500ms + var(--r) * 110ms);
+  animation-delay: calc(var(--ln) * 12ms), calc(500ms + min(var(--r), 15) * 110ms);
 }
 @keyframes xr-in { from { transform: scaleX(0); } }
 @keyframes xr-hit { from { background: #353240; } 35% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 40%, transparent); } }
@@ -483,7 +483,7 @@ button { font: inherit; color: inherit; }
   position: absolute; right: -34px; top: 50%; z-index: 1; padding: 0 3px;
   font-family: var(--mono); font-size: 9px; line-height: 10px; color: var(--c); cursor: pointer;
   background: var(--surface); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); border-radius: var(--radius);
-  translate: 0 -50%; animation: rise 400ms var(--ease) both; animation-delay: calc(500ms + var(--r) * 110ms);
+  translate: 0 -50%; animation: rise 400ms var(--ease) both; animation-delay: calc(500ms + min(var(--r), 15) * 110ms);
   transition: background-color 140ms, color 140ms;
 }
 .is-hot .xr__rank { background: var(--c); color: var(--ink); }
@@ -510,7 +510,8 @@ button { font: inherit; color: inherit; }
 .findings { list-style: none; margin: 36px 0 0; padding: 0; border-bottom: 1px solid var(--line); }
 .finding {
   position: relative; border-top: 1px solid var(--line);
-  animation: rise 520ms var(--ease) both; animation-delay: calc(var(--i) * 70ms);
+  /* stagger only the first rows; a long list otherwise keeps fading in for half a minute */
+  animation: rise 520ms var(--ease) both; animation-delay: calc(min(var(--i), 12) * 70ms);
   transition: background-color 180ms;
 }
 .finding::before {
@@ -518,6 +519,8 @@ button { font: inherit; color: inherit; }
   transform: scaleY(0.4); transform-origin: top; transition: transform 300ms var(--ease);
 }
 .finding:hover::before, .finding.is-open::before, .finding.is-hot::before { transform: scaleY(1); }
+/* long result lists: the browser skips layout and paint for rows off screen */
+.finding { content-visibility: auto; contain-intrinsic-size: auto 96px; }
 .finding.is-hot:not(.is-open) { background: color-mix(in srgb, var(--c) 6%, transparent); }
 .finding.is-open { background: var(--surface); }
 .finding__head {

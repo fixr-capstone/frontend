@@ -10,7 +10,6 @@ export default function XRay({
   notes,
   code,
   codeFile,
-  hot,
   onHot,
   onPick,
 }: {
@@ -18,11 +17,11 @@ export default function XRay({
   notes: Finding[];
   code: string | null;
   codeFile: string | null;
-  hot: string | null;
   onHot: (id: string | null) => void;
   onPick: (id: string) => void;
 }) {
   const files = [...new Set([...findings, ...notes].map((f) => f.file))];
+  const rankOf = new Map(findings.map((f, i) => [f.id, i]));
 
   return (
     <div className="xray">
@@ -54,12 +53,13 @@ export default function XRay({
                 const text = source?.[Math.floor(r * scale)] ?? "";
                 const indent = source ? text.length - text.trimStart().length : 0;
                 const width = source ? Math.min(text.trim().length, 72) / 72 : 0.3 + ((r * 37) % 11) / 30;
-                const rank = f ? findings.indexOf(f) : -1;
+                const rank = f ? rankOf.get(f.id)! : -1;
                 const first = f && rowOf(f.line) === r;
                 return (
                   <div
                     key={r}
-                    className={`xr ${f ? "xr--hit" : ""} ${noteRows.has(r) ? "xr--note" : ""} ${f && hot === f.id ? "is-hot" : ""}`}
+                    data-fid={f?.id}
+                    className={`xr ${f ? "xr--hit" : ""} ${noteRows.has(r) ? "xr--note" : ""}`}
                     style={{
                       ["--ln" as string]: r,
                       ["--x" as string]: indent / 72,

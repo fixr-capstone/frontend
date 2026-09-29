@@ -66,7 +66,6 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [scanId, setScanId] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatFocus, setChatFocus] = useState<Finding | null>(null);
-  const [hot, setHot] = useState<string | null>(null);
   const [heroFindings, setHeroFindings] = useState<Finding[]>([]);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -107,6 +106,16 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     );
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
+  }, []);
+
+  // Hover links a list row to its X-ray bar by toggling a class directly: as state it re-rendered
+  // every finding each time scrolling slid a new row under the cursor.
+  const hotId = useRef<string | null>(null);
+  const setHot = useCallback((id: string | null) => {
+    if (hotId.current === id) return;
+    hotId.current = id;
+    document.querySelectorAll(".is-hot").forEach((el) => el.classList.remove("is-hot"));
+    if (id) document.querySelectorAll(`[data-fid="${CSS.escape(id)}"]`).forEach((el) => el.classList.add("is-hot"));
   }, []);
 
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
@@ -232,6 +241,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const all = phase === "results" ? results.findings : [];
   const findings = all.filter((f) => !f.style);
   const notes = all.filter((f) => f.style);
+  const rankOf = new Map(findings.map((f, i) => [f.id, i]));
   const visible = findings.filter((f) => !filter || f.severity === filter);
   const counts = SEVERITIES.map((s) => ({ severity: s, n: findings.filter((f) => f.severity === s).length }));
   const lines = code.split("\n");
@@ -458,7 +468,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
 
               <div className="triage">
                 <aside className="triage__map">
-                  <XRay findings={findings} notes={notes} code={source === "zip" ? null : code} codeFile={editorFile} hot={hot} onHot={setHot} onPick={openFinding} />
+                  <XRay findings={findings} notes={notes} code={source === "zip" ? null : code} codeFile={editorFile} onHot={setHot} onPick={openFinding} />
                 </aside>
                 <div className="triage__list">
               <div className="chips">
@@ -482,7 +492,8 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                   <li
                     key={f.id}
                     id={`finding-${f.id}`}
-                    className={`finding ${open[f.id] ? "is-open" : ""} ${hot === f.id ? "is-hot" : ""}`}
+                    data-fid={f.id}
+                    className={`finding ${open[f.id] ? "is-open" : ""}`}
                     onMouseEnter={() => setHot(f.id)}
                     onMouseLeave={() => setHot(null)}
                     style={{ ["--c" as string]: SEVERITY_COLOR[f.severity], ["--i" as string]: i }}
@@ -492,7 +503,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                       onClick={() => setOpen((o) => ({ ...o, [f.id]: !o[f.id] }))}
                       aria-expanded={!!open[f.id]}
                     >
-                      <span className="finding__rank">{String(findings.indexOf(f) + 1).padStart(2, "0")}</span>
+                      <span className="finding__rank">{String((rankOf.get(f.id) ?? 0) + 1).padStart(2, "0")}</span>
                       <span className="finding__sev">{f.severity}</span>
                       <span className="finding__main">
                         <span className="finding__title">{f.title}</span>
