@@ -2,6 +2,8 @@
 
 Security triage for AI-written Python. Single page, no routing, no auth.
 
+A capstone project by Parth, Sparsh, Anushka and Shrey.
+
 The three sample files have prepared results in `lib/samples.json`: a snapshot of what the real backend returns for them, including the LLM explanations. Anything else (edited
 samples, pasted code, an uploaded `.zip`) is scanned live by the Fixr backend.
 
