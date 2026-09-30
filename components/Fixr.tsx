@@ -584,7 +584,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
           </div>
         </div>
         <div className="wrap footer__base">
-          <span>Fixr, a capstone project by Parth, Sparsh and Shrey</span>
+          <span>Fixr, a capstone project by Parth, Sparsh, Anushka and Shrey</span>
           <span>Sample results are prepared. Your own code is scanned live.</span>
         </div>
       </footer>
