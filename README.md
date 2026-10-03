@@ -71,7 +71,8 @@ Before a demo, open the site a minute early so the server is already awake.
 - `app/not-found.tsx`: the 404 page
 - `components/Pipeline.tsx`: how it works. The section pins while you scroll and runs scan, filter, rank and explain over the real `app.py` scan, line by line
 - `components/ZipView.tsx`: an uploaded project's Python files, read from the archive in the browser. A read head steps down them while scanning; each then shows its finding count
-- `components/XRay.tsx`: results minimap. Each file drawn one bar per line, findings lit by severity and numbered by priority, linked to the list
+- `components/FindingList.tsx`: the results list. A toolbar (search, file, severity, grouping) that stays under the header on wide screens; big scans group by issue, so 50 copies of one warning are one row with its places inside; long lists render 40 at a time. Also the file index that replaces the x-ray when a scan covers more than 6 files
+- `components/XRay.tsx`: results minimap for scans of up to 6 files. Each file drawn one bar per line, findings lit by severity and numbered by priority, linked to the list
 - `components/Chat.tsx`: the Ask Fixr drawer
 - `lib/highlight.tsx`: small Python tokenizer used by the editor and the code blocks
 - `lib/findings.ts`: sample data and sample source files

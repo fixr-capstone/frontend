@@ -5,11 +5,6 @@ import { SEVERITY_COLOR, type Finding } from "@/lib/findings";
 import { COUNTS, REAL_AT, REST, TOTAL, noiseHeight } from "@/lib/signal";
 
 const SWEEP_MS = 2400;
-const FACTS = [
-  ["4", "scanners"],
-  ["94.8%", "filter accuracy"],
-  ["5", "findings explained"],
-];
 
 export default function Hero({
   findings,
@@ -59,11 +54,14 @@ export default function Hero({
           <a className="btn btn--primary" href="#scanner" onClick={(e) => { e.preventDefault(); onNav("scanner"); }}>Scan your code</a>
           <a className="btn btn--ghost" href="#how" onClick={(e) => { e.preventDefault(); onNav("how"); }}>How it works</a>
         </div>
-        <dl className="hero__facts">
-          {FACTS.map(([n, label]) => (
-            <div key={label}><dt>{label}</dt><dd>{n}</dd></div>
-          ))}
-        </dl>
+        {/* the actual pipeline, not a row of vanity numbers */}
+        <p className="hero__stack" aria-label="Pipeline">
+          <span>Bandit</span><span>pip-audit</span><span>deptry</span><span>flake8</span>
+          <i aria-hidden="true">→</i>
+          <span>XGBoost false-alarm filter, 94.8% accurate</span>
+          <i aria-hidden="true">→</i>
+          <span>explanations by an LLM on Groq</span>
+        </p>
       </div>
 
       <div className="signal">

@@ -1,20 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EXAMPLES, SEVERITY_COLOR, getResults, type ExampleKey, type Finding, type Severity } from "@/lib/findings";
-import { highlight, highlightLine } from "@/lib/highlight";
+import { EXAMPLES, SEVERITY_COLOR, getResults, type ExampleKey, type Finding } from "@/lib/findings";
+import { highlightLine } from "@/lib/highlight";
 import Hero from "@/components/Hero";
 import Chat from "@/components/Chat";
 import Logo from "@/components/Logo";
 import XRay from "@/components/XRay";
+import FindingList, { FileIndex } from "@/components/FindingList";
 import { buildFixPrompt } from "@/lib/fixPrompt";
-import { Markdown } from "@/lib/markdown";
 import ZipView from "@/components/ZipView";
 import { ServerPill, WakeNote } from "@/components/ServerStatus";
 import { MAX_UPLOAD_MB, SNIPPET_FILE, checkBackend, scanZip, zipOne, zipPyFiles } from "@/lib/api";
 import Pipeline from "@/components/Pipeline";
 
-const SEVERITIES: Severity[] = ["critical", "high", "medium", "low"];
 /** Same order as the real pipeline. */
 const STATUS_LINES = [
   "Running Bandit, pip-audit, deptry and flake8",
@@ -52,8 +51,8 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [code, setCode] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [statusIdx, setStatusIdx] = useState(0);
-  const [filter, setFilter] = useState<Severity | null>(null);
-  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
+  const [fileFilter, setFileFilter] = useState<string | null>(null);
   const [warn, setWarn] = useState("");
   const [online, setOnline] = useState<boolean | null>(null);
   const [zip, setZip] = useState<{ name: string; size: number; files: string[] } | null>(null);
@@ -132,7 +131,10 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     const el = document.getElementById(id);
     if (!el) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 88, behavior: reduce ? "auto" : "smooth" });
+    // a finding sits under the sticky results toolbar as well as the header
+    const toolbar = id.startsWith("finding-") ? document.querySelector<HTMLElement>(".toolbar") : null;
+    const below = toolbar && getComputedStyle(toolbar).position === "sticky" ? toolbar.offsetHeight + 12 : 0;
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 88 - below, behavior: reduce ? "auto" : "smooth" });
   }, []);
 
   /** Results only exist for the untouched sample files; anything else is the user's own code. */
@@ -143,16 +145,14 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     setExample(key);
     setCode(EXAMPLES[key].code);
     setPhase("idle");
-    setFilter(null);
-    setOpen({});
+    setFileFilter(null);
     setWarn("");
   };
 
   const run = async (src: Source, request: () => Promise<{ raw: number | null; findings: Finding[] }>) => {
     clearTimers();
     setWarn("");
-    setFilter(null);
-    setOpen({});
+    setFileFilter(null);
     setSource(src);
     setPhase("loading");
     setStatusIdx(0);
@@ -209,8 +209,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     setExample(null);
     setCode("");
     setPhase("idle");
-    setFilter(null);
-    setOpen({});
+    setFileFilter(null);
     setWarn("");
     setResults({ raw: 0, findings: [] });
     scrollTo("scanner");
@@ -218,9 +217,8 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   };
 
   const openFinding = (id: string) => {
-    setFilter(null);
-    setOpen((o) => ({ ...o, [id]: true }));
-    timers.current.push(setTimeout(() => scrollTo(`finding-${id}`), 60));
+    setFocus((f) => ({ id, n: (f?.n ?? 0) + 1 }));
+    timers.current.push(setTimeout(() => scrollTo(`finding-${id}`), 90));
   };
 
   const pickFromHero = () => {
@@ -249,9 +247,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const all = phase === "results" ? results.findings : [];
   const findings = all.filter((f) => !f.style);
   const notes = all.filter((f) => f.style);
-  const rankOf = new Map(findings.map((f, i) => [f.id, i]));
-  const visible = findings.filter((f) => !filter || f.severity === filter);
-  const counts = SEVERITIES.map((s) => ({ severity: s, n: findings.filter((f) => f.severity === s).length }));
+  const fileCount = new Set(findings.map((f) => f.file)).size;
   const lines = code.split("\n");
   const editorFile = source === "zip" ? null : source === "code" ? SNIPPET_FILE : example === "minor" ? "profile.py" : example === "clean" ? "clean.py" : "app.py";
   const notesBlock = notes.length > 0 && (
@@ -457,8 +453,8 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                 <p className="summary__text">
                   {results.raw !== null
                     ? `${results.raw} raw warnings: ${results.raw - all.length} dropped as ${results.raw - all.length === 1 ? "a likely false alarm" : "likely false alarms"}, ${notes.length} style notes set aside. `
-                    : "Filtered and ranked by the Fixr backend. "}
-                  <strong>{findings.length} worth your time.</strong>
+                    : `Filtered and ranked by the Fixr backend${source === "zip" ? `, across ${fileCount} ${fileCount === 1 ? "file" : "files"}` : ""}${notes.length ? `; ${notes.length} style ${notes.length === 1 ? "note" : "notes"} set aside` : ""}. `}
+                  <strong>{findings.length} left to fix.</strong>
                 </p>
               </div>
 
@@ -476,80 +472,14 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
               </div>
 
               <div className="triage">
-                <aside className="triage__map">
-                  <XRay findings={findings} notes={notes} code={source === "zip" ? null : code} codeFile={editorFile} onHot={setHot} onPick={openFinding} />
+                {/* many files: an index that filters; few: the x-ray of each file */}
+                <aside className={`triage__map ${fileCount > 6 ? "triage__map--index" : ""}`}>
+                  {fileCount > 6
+                    ? <FileIndex findings={findings} file={fileFilter} onFile={setFileFilter} />
+                    : <XRay findings={findings} notes={notes} code={source === "zip" ? null : code} codeFile={editorFile} onHot={setHot} onPick={openFinding} />}
                 </aside>
                 <div className="triage__list">
-              <div className="chips">
-                {counts.map((c) => (
-                  <button
-                    key={c.severity}
-                    className={`chip ${filter === c.severity ? "is-on" : ""}`}
-                    disabled={c.n === 0}
-                    aria-pressed={filter === c.severity}
-                    style={{ ["--c" as string]: SEVERITY_COLOR[c.severity] }}
-                    onClick={() => setFilter((cur) => (cur === c.severity ? null : c.severity))}
-                  >
-                    <b>{c.n}</b> {c.severity}
-                  </button>
-                ))}
-                {filter && <button className="chips__clear" onClick={() => setFilter(null)}>Show all</button>}
-              </div>
-
-              <ul className="findings">
-                {visible.map((f, i) => (
-                  <li
-                    key={f.id}
-                    id={`finding-${f.id}`}
-                    data-fid={f.id}
-                    className={`finding ${open[f.id] ? "is-open" : ""}`}
-                    onMouseEnter={() => setHot(f.id)}
-                    onMouseLeave={() => setHot(null)}
-                    style={{ ["--c" as string]: SEVERITY_COLOR[f.severity], ["--i" as string]: i }}
-                  >
-                    <button
-                      className="finding__head"
-                      onClick={() => setOpen((o) => ({ ...o, [f.id]: !o[f.id] }))}
-                      aria-expanded={!!open[f.id]}
-                    >
-                      <span className="finding__rank">{String((rankOf.get(f.id) ?? 0) + 1).padStart(2, "0")}</span>
-                      <span className="finding__sev">{f.severity}</span>
-                      <span className="finding__main">
-                        <span className="finding__title">{f.title}</span>
-                        <span className="finding__loc">{f.file}, line {f.line}</span>
-                      </span>
-                      <span className="finding__toggle" aria-hidden="true" />
-                    </button>
-
-                    {open[f.id] && (
-                      <div className="finding__body">
-                        <Markdown className="finding__desc" text={f.description} />
-                        {(f.snippet || f.suggestedFix) && <div className="snips">
-                          {f.snippet && <div className="snip snip--bad">
-                            <div className="snip__head">
-                              <span>Flagged code</span>
-                              <button className="copy" onClick={() => copy(f.id + "s", f.snippet)}>
-                                {copied === f.id + "s" ? "Copied" : "Copy"}
-                              </button>
-                            </div>
-                            <pre>{highlight(f.snippet)}</pre>
-                          </div>}
-                          {f.suggestedFix && <div className="snip snip--fix">
-                            <div className="snip__head">
-                              <span>Suggested fix</span>
-                              <button className="copy" onClick={() => copy(f.id + "f", f.suggestedFix)}>
-                                {copied === f.id + "f" ? "Copied" : "Copy"}
-                              </button>
-                            </div>
-                            <pre>{highlight(f.suggestedFix)}</pre>
-                          </div>}
-                        </div>}
-                        <button className="ask" onClick={() => openChat(f)}>Ask about this finding</button>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                  <FindingList key={scanId} findings={findings} focus={focus} file={fileFilter} onFile={setFileFilter} onHot={setHot} onAsk={openChat} />
               {notesBlock}
                 </div>
               </div>
