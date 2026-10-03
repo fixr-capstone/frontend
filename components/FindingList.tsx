@@ -30,31 +30,73 @@ function fileStats(findings: Finding[]) {
   return [...stats.entries()].sort((a, b) => b[1].n - a[1].n);
 }
 
-/** Left column for multi-file scans: one row per file instead of a minimap each; a click filters the list. */
+/** The folder every file shares (a zip's "<repo>-main/" wrapper), so it is shown once, not on every row. */
+export function commonRoot(paths: string[]) {
+  const dirs = paths.map((p) => p.split("/").slice(0, -1));
+  const root: string[] = [];
+  for (let i = 0; dirs.every((d) => i < d.length && d[i] === dirs[0][i]); i++) root.push(dirs[0][i]);
+  return root.length ? root.join("/") + "/" : "";
+}
+
+/** A path that may wrap after each "/" instead of mid-name. */
+const breakable = (path: string) =>
+  path.split("/").flatMap((part, i, all) => (i < all.length - 1 ? [part + "/", <wbr key={i} />] : [part]));
+
+/** Short path for display: without the shared root. */
+export const shortPath = (path: string, root: string) => (root && path.startsWith(root) ? path.slice(root.length) : path);
+
+/**
+ * Left column for multi-file scans, laid out like an editor's explorer: files under their folders, each with a
+ * signal bar as long as its share of the worst file and coloured by its severity mix. A click scopes the list.
+ */
 export function FileIndex({ findings, file, onFile }: { findings: Finding[]; file: string | null; onFile: (f: string | null) => void }) {
-  const files = useMemo(() => fileStats(findings), [findings]);
+  const { root, dirs, max, fileCount } = useMemo(() => {
+    const files = fileStats(findings);
+    const root = commonRoot(files.map(([name]) => name));
+    const byDir = new Map<string, { total: number; files: typeof files }>();
+    for (const entry of files) {
+      const short = shortPath(entry[0], root);
+      const dir = short.includes("/") ? short.slice(0, short.lastIndexOf("/") + 1) : "";
+      const d = byDir.get(dir) ?? { total: 0, files: [] };
+      d.total += entry[1].n;
+      d.files.push(entry);
+      byDir.set(dir, d);
+    }
+    const dirs = [...byDir.entries()].sort((a, b) => b[1].total - a[1].total);
+    return { root, dirs, max: files[0]?.[1].n ?? 1, fileCount: files.length };
+  }, [findings]);
+
   return (
-    <nav className="findex" aria-label="Files with findings">
-      <p className="findex__head">
-        <span>{files.length} files</span>
-        {file && <button type="button" onClick={() => onFile(null)}>All files</button>}
-      </p>
-      <ul>
-        {files.map(([name, s]) => {
-          const cut = name.lastIndexOf("/") + 1;
-          return (
-            <li key={name}>
-              <button type="button" className={`findex__row ${file === name ? "is-on" : ""}`} aria-pressed={file === name} onClick={() => onFile(file === name ? null : name)} title={name}>
-                <span className="findex__name"><span>{name.slice(0, cut)}</span>{name.slice(cut)}</span>
-                <span className="findex__n">{s.n}</span>
-                <span className="findex__mix" aria-hidden="true">
-                  {SEVERITIES.map((sev) => s.c[sev] > 0 && <i key={sev} style={{ flexGrow: s.c[sev], background: SEVERITY_COLOR[sev] }} />)}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+    <nav className="tree" aria-label="Files with findings">
+      <div className="tree__head">
+        <span className="tree__root" title={root}>{root ? root.replace(/\/$/, "") : "project"}</span>
+        <span className="tree__sum">{fileCount} files · {findings.length}</span>
+      </div>
+      {file && <button type="button" className="tree__all" onClick={() => onFile(null)}>Show every file</button>}
+      {dirs.map(([dir, d]) => (
+        <section key={dir} className="tree__dir">
+          <p className="tree__dirname"><span>{dir || "./"}</span><b>{d.total}</b></p>
+          <ul>
+            {d.files.map(([name, s]) => (
+              <li key={name}>
+                <button
+                  type="button"
+                  className={`tree__file ${file === name ? "is-on" : ""} ${file && file !== name ? "is-dim" : ""}`}
+                  aria-pressed={file === name}
+                  title={name}
+                  onClick={() => onFile(file === name ? null : name)}
+                >
+                  <span className="tree__name">{name.slice(name.lastIndexOf("/") + 1)}</span>
+                  <span className="tree__n">{s.n}</span>
+                  <span className="tree__bar" style={{ ["--w" as string]: s.n / max }} aria-hidden="true">
+                    {SEVERITIES.map((sev) => s.c[sev] > 0 && <i key={sev} style={{ flexGrow: s.c[sev], background: SEVERITY_COLOR[sev] }} />)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </nav>
   );
 }
@@ -66,15 +108,20 @@ export default function FindingList({
   onFile,
   onHot,
   onAsk,
+  hasIndex = false,
 }: {
   findings: Finding[];
   focus: { id: string; n: number } | null;
+  hasIndex?: boolean;
   file: string | null;
   onFile: (f: string | null) => void;
   onHot: (id: string | null) => void;
   onAsk: (f: Finding) => void;
 }) {
   const files = useMemo(() => fileStats(findings), [findings]);
+  const root = useMemo(() => commonRoot(files.map(([name]) => name)), [files]);
+  const short = (path: string) => shortPath(path, root);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<Mode>(findings.length > GROUP_BY_DEFAULT ? "issue" : "priority");
   const [severity, setSeverity] = useState<Severity | null>(null);
   const [query, setQuery] = useState("");
@@ -96,6 +143,8 @@ export default function FindingList({
   const grouped = new Map<string, Finding[]>();
   if (mode !== "priority") for (const f of visible) grouped.set(keyOf(f, mode), [...(grouped.get(keyOf(f, mode)) ?? []), f]);
   const groups = [...grouped.entries()];
+  // groups of one (e.g. scoped to a single file) are just headers over a row: show the plain list
+  const flat = mode === "priority" || groups.every(([, items]) => items.length === 1);
   const counts = SEVERITIES.map((s) => ({ s, n: findings.filter((f) => f.severity === s && (!file || f.file === file)).length }));
   const filtered = Boolean(severity || file || q);
 
@@ -113,6 +162,18 @@ export default function FindingList({
     setGroupAll((g) => ({ ...g, [keyOf(f, mode)]: true }));
     // onFile and mode are read when a finding is picked; re-running on their change would re-open it
   }, [focus, findings, rankOf]);
+
+  // "/" jumps to the filter, as in editors and GitHub
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || t.closest("input, textarea, select, [contenteditable]")) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const copy = (id: string, text: string) => {
     navigator.clipboard?.writeText(text).catch(() => {});
@@ -140,11 +201,11 @@ export default function FindingList({
           {!where && <span className="finding__sev">{f.severity}</span>}
           <span className="finding__main">
             {where ? (
-              <span className="finding__where">{f.file}<span>:{f.line}</span></span>
+              <span className="finding__where">{breakable(short(f.file))}<span>:{f.line}</span></span>
             ) : (
               <>
                 <span className="finding__title">{f.title}</span>
-                <span className="finding__loc">{inGroup ? `line ${f.line}` : `${f.file}, line ${f.line}`}{f.rule ? ` · ${f.rule}` : ""}</span>
+                <span className="finding__loc">{inGroup || file ? `line ${f.line}` : `${short(f.file)}, line ${f.line}`}{f.rule ? ` · ${f.rule}` : ""}</span>
               </>
             )}
           </span>
@@ -186,18 +247,23 @@ export default function FindingList({
     <>
       <div className="toolbar">
         <div className="toolbar__row">
-          <input
-            type="search"
-            className="toolbar__search"
-            placeholder="Filter by file, rule or text"
-            aria-label="Filter findings"
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setShown(PAGE); }}
-          />
+          <label className="search">
+            <span className="search__prompt" aria-hidden="true">&gt;</span>
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder="filter by file, rule or text"
+              aria-label="Filter findings"
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setShown(PAGE); }}
+            />
+            {!query && <kbd className="search__kbd" aria-hidden="true">/</kbd>}
+          </label>
           {files.length > 1 && (
-            <select className="toolbar__file" aria-label="Show one file" value={file ?? ""} onChange={(e) => { onFile(e.target.value || null); setShown(PAGE); }}>
-              <option value="">All files ({files.length})</option>
-              {files.map(([name, s]) => <option key={name} value={name}>{name} ({s.n})</option>)}
+            // the explorer is the file picker on wide screens; this select covers phones and small scans
+            <select className={`toolbar__file ${hasIndex ? "toolbar__file--index" : ""}`} aria-label="Show one file" value={file ?? ""} onChange={(e) => { onFile(e.target.value || null); setShown(PAGE); }}>
+              <option value="">All {files.length} files</option>
+              {files.map(([name, s]) => <option key={name} value={name}>{short(name)} ({s.n})</option>)}
             </select>
           )}
           <div className="seg" role="group" aria-label="Group findings">
@@ -219,19 +285,24 @@ export default function FindingList({
               <b>{n}</b> {s}
             </button>
           ))}
-          <span className="toolbar__count" aria-live="polite">
-            {filtered ? `${visible.length} of ${findings.length} shown` : `${findings.length} ${findings.length === 1 ? "finding" : "findings"}`}
-            {mode !== "priority" && ` in ${groups.length} ${groups.length === 1 ? "group" : "groups"}`}
-          </span>
+          {file && (
+            <button type="button" className="scope" title={`${file}: show every file`} onClick={() => onFile(null)}>
+              in <b>{short(file)}</b><span aria-hidden="true">×</span>
+            </button>
+          )}
           {filtered && (
             <button className="chips__clear" onClick={() => { setSeverity(null); setQuery(""); onFile(null); }}>Clear filters</button>
           )}
+          <span className="toolbar__count" aria-live="polite">
+            {filtered ? `${visible.length} of ${findings.length} shown` : `${findings.length} ${findings.length === 1 ? "finding" : "findings"}`}
+            {!flat && ` in ${groups.length} ${groups.length === 1 ? "group" : "groups"}`}
+          </span>
         </div>
       </div>
 
       {visible.length === 0 && <p className="findings__empty">Nothing matches these filters.</p>}
 
-      {mode === "priority" ? (
+      {flat ? (
         <>
           <ul className="findings">{visible.slice(0, shown).map((f, i) => row(f, i, false))}</ul>
           {visible.length > shown && (
@@ -254,7 +325,7 @@ export default function FindingList({
                   <span className="finding__rank">{pad((rankOf.get(head.id) ?? 0) + 1)}</span>
                   <span className="finding__sev">{sev}</span>
                   <span className="group__main">
-                    <span className="group__title">{mode === "issue" ? head.title : key}</span>
+                    <span className="group__title">{mode === "issue" ? head.title : short(key)}</span>
                     <span className="group__meta">
                       {mode === "issue"
                         ? `${head.rule ? `${head.rule} · ` : ""}${items.length} ${items.length === 1 ? "place" : "places"}${fileCount > 1 ? ` in ${fileCount} files` : ""}`

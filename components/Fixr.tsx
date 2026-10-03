@@ -479,7 +479,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                     : <XRay findings={findings} notes={notes} code={source === "zip" ? null : code} codeFile={editorFile} onHot={setHot} onPick={openFinding} />}
                 </aside>
                 <div className="triage__list">
-                  <FindingList key={scanId} findings={findings} focus={focus} file={fileFilter} onFile={setFileFilter} onHot={setHot} onAsk={openChat} />
+                  <FindingList key={scanId} findings={findings} focus={focus} file={fileFilter} onFile={setFileFilter} onHot={setHot} onAsk={openChat} hasIndex={fileCount > 6} />
               {notesBlock}
                 </div>
               </div>
