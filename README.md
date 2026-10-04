@@ -71,7 +71,7 @@ Before a demo, open the site a minute early so the server is already awake.
 - `app/not-found.tsx`: the 404 page
 - `components/Pipeline.tsx`: how it works. The section pins while you scroll and runs scan, filter, rank and explain over the real `app.py` scan, line by line
 - `components/ZipView.tsx`: an uploaded project's Python files, read from the archive in the browser. A read head steps down them while scanning; each then shows its finding count
-- `components/FindingList.tsx`: the results list. A toolbar (search, file, severity, grouping) that stays under the header on wide screens; big scans group by issue, so 50 copies of one warning are one row with its places inside; long lists render 40 at a time. Also the file index that replaces the x-ray when a scan covers more than 6 files
+- `components/FindingList.tsx`: the results list and its toolbar, plus the file explorer that replaces the x-ray when a scan covers more than 6 files (see Results)
 - `components/XRay.tsx`: results minimap for scans of up to 6 files. Each file drawn one bar per line, findings lit by severity and numbered by priority, linked to the list
 - `components/Chat.tsx`: the Ask Fixr drawer
 - `lib/highlight.tsx`: small Python tokenizer used by the editor and the code blocks
@@ -135,6 +135,29 @@ The "Ask Fixr" drawer (`components/Chat.tsx`) talks to this endpoint on the back
 - Reply: the answer as a `text/plain` stream (chunked). Send `Cache-Control: no-cache, no-transform`,
   otherwise a compressing proxy buffers the response and the reply arrives in one piece.
 - A 429 means the rate limit was hit. A 404 or 405 shows the "not switched on" message; any other error status shows it to the user.
+
+## Results
+
+Built so a big project (hundreds of findings across dozens of files) stays a short page
+(`components/FindingList.tsx`):
+
+- **Toolbar.** A prompt-style search (`> filter by file, rule or text`; press `/` anywhere to jump
+  to it), the severity chips, and a switch between By issue, By file and By priority. On wide
+  screens it stays under the header. A chosen file shows as a removable chip
+  (`in client/operations/file_operations.py ×`); focus rings appear for keyboard use only.
+- **Grouping.** Scans of more than 25 findings group by issue, so 50 copies of one warning are one
+  row ("B105 · 50 places in 50 files") with its places inside, 20 at a time. The priority view
+  renders 40 rows at a time. When every group would hold one finding (one file in scope), the list
+  is shown flat.
+- **Explorer.** Scans of more than 6 files get an editor-style explorer in the left column instead
+  of a minimap per file. The folder every file shares (a zip's `<repo>-main/`) is shown once as the
+  project name; files sit under their folders with totals; each file has a signal bar as long as
+  its share of the worst file and coloured by its severity mix. Clicking a file scopes the list and
+  dims the rest. The column scrolls on its own, so it stays in view. On phones the explorer hides
+  and a compact file picker takes its place in the toolbar.
+- **Paths** drop the shared root and wrap after a `/`, not mid-name.
+- Picking a finding from the x-ray, the editor gutter or the hero clears the filters, opens its
+  group, pages to it and scrolls it clear of the toolbar.
 
 ## Motion and performance
 
