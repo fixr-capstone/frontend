@@ -162,7 +162,20 @@ Built so a big project (hundreds of findings across dozens of files) stays a sho
 
 ## Motion and performance
 
-Every animation uses `transform` or `opacity` and switches off under `prefers-reduced-motion`.
+Every animation uses `transform` or `opacity`, so it runs on the compositor and never re-lays out
+or repaints the page, and it switches off under `prefers-reduced-motion`. The moving parts:
+
+- **Hero:** a faint grid fades in, a mint scan line passes down every few seconds, and the signal
+  sweep crosses out the headline.
+- **Buttons:** a light sweep across primary buttons on hover; a press-down on click.
+- **Grouping switch:** the highlight slides between By issue, By file and By priority.
+- **Results:** changing grouping, severity or file morphs between views (View Transitions; browsers
+  without it, or a transition that cannot start, get the instant update). Rows rise in, capped to
+  the first few.
+- **Copy buttons** pop when they copy; **CLI guide steps** send out a ring when they tick off.
+- **Scroll-driven, no JavaScript:** the reading-progress bar under the header and the back-to-top
+  button that fades in further down both use CSS scroll timelines.
+
 Long result lists stay smooth: hover links a row to its X-ray bar by toggling a class instead of
 re-rendering, entrance staggers are capped to the first rows, and off-screen rows skip layout
 (`content-visibility`). The header uses a near-opaque background instead of a backdrop blur,
