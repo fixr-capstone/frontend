@@ -469,7 +469,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                 </p>
                 <div className="handoff__actions">
                   <button className="btn btn--primary" onClick={downloadPrompt}>Download fix prompt</button>
-                  <button className="btn btn--ghost" onClick={() => copy("prompt", buildFixPrompt(findings, notes))}>
+                  <button className={`btn btn--ghost ${copied === "prompt" ? "is-copied" : ""}`} onClick={() => copy("prompt", buildFixPrompt(findings, notes))}>
                     {copied === "prompt" ? "Copied" : "Copy prompt"}
                   </button>
                   <button className="btn btn--ghost" onClick={() => openChat(null)}>Ask Fixr</button>
@@ -500,6 +500,11 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
       )}
 
       <CliPanel open={cliOpen} onClose={() => setCliOpen(false)} />
+
+      {/* fades in once the page is long scrolled; driven by a CSS scroll timeline, no listener */}
+      <a href="#" className="totop" aria-label="Back to top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+        <span aria-hidden="true">↑</span>
+      </a>
 
       <footer className="footer">
         <div className="wrap footer__inner">

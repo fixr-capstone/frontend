@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { SEVERITY_COLOR, type Finding, type Severity } from "@/lib/findings";
 import { highlight } from "@/lib/highlight";
 import { Markdown } from "@/lib/markdown";
@@ -17,6 +18,20 @@ const MODES: [Mode, string][] = [["issue", "By issue"], ["file", "By file"], ["p
 const pad = (n: number) => String(n).padStart(2, "0");
 const keyOf = (f: Finding, mode: Mode) => (mode === "file" ? f.file : `${f.rule ?? ""}|${f.title}`);
 const worst = (items: Finding[]) => items.reduce((w, f) => (RANK[f.severity] < RANK[w] ? f.severity : w), items[0].severity);
+
+/**
+ * Morph the results between views instead of cutting (View Transitions). Browsers without it,
+ * and people who ask for reduced motion, get the plain instant update.
+ */
+export function morph(update: () => void) {
+  const start = (document as Document & { startViewTransition?: (cb: () => void) => unknown }).startViewTransition;
+  if (!start || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return update();
+  let ran = false;
+  const run = () => { if (!ran) { ran = true; flushSync(update); } };
+  start.call(document, run);
+  // a transition that cannot start (a tab that is not painting) must not swallow the click
+  setTimeout(run, 300);
+}
 
 /** Per file: count and severity mix, most findings first. */
 function fileStats(findings: Finding[]) {
@@ -84,7 +99,7 @@ export function FileIndex({ findings, file, onFile }: { findings: Finding[]; fil
                   className={`tree__file ${file === name ? "is-on" : ""} ${file && file !== name ? "is-dim" : ""}`}
                   aria-pressed={file === name}
                   title={name}
-                  onClick={() => onFile(file === name ? null : name)}
+                  onClick={() => morph(() => onFile(file === name ? null : name))}
                 >
                   <span className="tree__name">{name.slice(name.lastIndexOf("/") + 1)}</span>
                   <span className="tree__n">{s.n}</span>
@@ -147,6 +162,7 @@ export default function FindingList({
   const flat = mode === "priority" || groups.every(([, items]) => items.length === 1);
   const counts = SEVERITIES.map((s) => ({ s, n: findings.filter((f) => f.severity === s && (!file || f.file === file)).length }));
   const filtered = Boolean(severity || file || q);
+  const modes = MODES.filter(([m]) => m !== "file" || files.length > 1);
 
   // Something outside the list (x-ray, gutter, hero) picked a finding: clear what hides it and open it.
   useEffect(() => {
@@ -220,7 +236,7 @@ export default function FindingList({
                   <div className="snip snip--bad">
                     <div className="snip__head">
                       <span>Flagged code</span>
-                      <button className="copy" onClick={() => copy(f.id + "s", f.snippet)}>{copied === f.id + "s" ? "Copied" : "Copy"}</button>
+                      <button className={`copy ${copied === f.id + "s" ? "is-copied" : ""}`} onClick={() => copy(f.id + "s", f.snippet)}>{copied === f.id + "s" ? "Copied" : "Copy"}</button>
                     </div>
                     <pre>{highlight(f.snippet)}</pre>
                   </div>
@@ -229,7 +245,7 @@ export default function FindingList({
                   <div className="snip snip--fix">
                     <div className="snip__head">
                       <span>Suggested fix</span>
-                      <button className="copy" onClick={() => copy(f.id + "f", f.suggestedFix)}>{copied === f.id + "f" ? "Copied" : "Copy"}</button>
+                      <button className={`copy ${copied === f.id + "f" ? "is-copied" : ""}`} onClick={() => copy(f.id + "f", f.suggestedFix)}>{copied === f.id + "f" ? "Copied" : "Copy"}</button>
                     </div>
                     <pre>{highlight(f.suggestedFix)}</pre>
                   </div>
@@ -266,9 +282,14 @@ export default function FindingList({
               {files.map(([name, s]) => <option key={name} value={name}>{short(name)} ({s.n})</option>)}
             </select>
           )}
-          <div className="seg" role="group" aria-label="Group findings">
-            {MODES.filter(([m]) => m !== "file" || files.length > 1).map(([m, label]) => (
-              <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}>{label}</button>
+          <div
+            className="seg"
+            role="group"
+            aria-label="Group findings"
+            style={{ ["--n" as string]: modes.length, ["--i" as string]: Math.max(0, modes.findIndex(([m]) => m === mode)) }}
+          >
+            {modes.map(([m, label]) => (
+              <button key={m} type="button" aria-pressed={mode === m} onClick={() => morph(() => setMode(m))}>{label}</button>
             ))}
           </div>
         </div>
@@ -280,7 +301,7 @@ export default function FindingList({
               disabled={n === 0}
               aria-pressed={severity === s}
               style={{ ["--c" as string]: SEVERITY_COLOR[s] }}
-              onClick={() => { setSeverity((cur) => (cur === s ? null : s)); setShown(PAGE); }}
+              onClick={() => morph(() => { setSeverity((cur) => (cur === s ? null : s)); setShown(PAGE); })}
             >
               <b>{n}</b> {s}
             </button>

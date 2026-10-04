@@ -700,14 +700,22 @@ kbd {
 .scope:hover { border-color: var(--mint); }
 .toolbar .chips { margin: 0; }
 .toolbar__count { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.seg {
+  position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+}
+.seg::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: calc(100% / var(--n, 3));
+  background: var(--text); transform: translateX(calc(var(--i, 0) * 100%)); transition: transform 340ms var(--ease);
+}
+.seg button { position: relative; z-index: 1; }
 .seg button {
   padding: 0 14px; min-height: 38px; background: transparent; border: 0; cursor: pointer;
   font: 13px var(--mono); color: var(--muted); white-space: nowrap; transition: background-color 140ms, color 140ms;
 }
 .seg button + button { border-left: 1px solid var(--line-strong); }
 .seg button:hover { color: var(--text); }
-.seg button[aria-pressed="true"] { background: var(--text); color: var(--ink); }
+.seg button[aria-pressed="true"] { color: var(--ink); transition: color 200ms 80ms; }
 .findings__empty { margin: 32px 0; color: var(--muted); }
 
 /* paging: a long list renders a page at a time */
@@ -898,6 +906,78 @@ kbd {
 .cli__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 16px 24px; border-top: 1px solid var(--line); }
 .cli__foot span { font-size: 12px; color: var(--faint); }
 @media (prefers-reduced-motion: reduce) { .cli[open] { animation: none; } }
+
+
+/* motion ------------------------------------------------------------------- */
+/* everything here animates transform or opacity only, so it runs on the compositor and never
+   re-lays out the page; the global reduced-motion rule turns it off */
+
+/* hero: a faint grid with a scan line passing down it, the scanner reading the page */
+.hero { position: relative; isolation: isolate; overflow: clip; }
+.hero::before, .hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.hero::before {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 65% 45%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 60% at 65% 45%, #000 30%, transparent 75%);
+  opacity: 0; animation: fade-in 1.4s 300ms ease both;
+}
+.hero::after {
+  background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--mint) 5%, transparent) 47%, color-mix(in srgb, var(--mint) 15%, transparent) 50%, transparent 50.3%);
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 60% 50%, #000 35%, transparent 80%);
+  mask-image: radial-gradient(ellipse 75% 70% at 60% 50%, #000 35%, transparent 80%);
+  transform: translateY(-50%); opacity: 0; animation: hero-scan 9s 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes fade-in { to { opacity: 1; } }
+@keyframes hero-scan {
+  0% { transform: translateY(-50%); opacity: 0; }
+  8% { opacity: 1; }
+  55% { transform: translateY(50%); opacity: 1; }
+  62%, 100% { transform: translateY(50%); opacity: 0; }
+}
+
+/* primary buttons: a light sweep on hover */
+.btn--primary { position: relative; overflow: hidden; isolation: isolate; }
+.btn--primary::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.5) 50%, transparent 70%);
+  transform: translateX(-110%); transition: transform 650ms var(--ease);
+}
+.btn--primary:hover:not(:disabled)::after { transform: translateX(110%); }
+
+/* copy buttons pop when they copy */
+.copy.is-copied, .step__copy.is-copied, .btn.is-copied { animation: pop 320ms var(--ease); }
+.copy.is-copied { color: var(--mint); border-color: var(--mint); }
+.btn--ghost.is-copied { border-color: var(--mint); color: var(--mint); }
+@keyframes pop { 40% { transform: scale(1.08); } }
+
+/* CLI guide: a ring bursts from a step when it ticks off */
+.step__mark::after {
+  content: ""; position: absolute; inset: -1px; border-radius: 50%; border: 2px solid var(--mint);
+  opacity: 0; pointer-events: none;
+}
+.step.is-done .step__mark::after { animation: burst 620ms var(--ease) both; }
+@keyframes burst { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(1.9); } }
+
+/* results morph between views (grouping, severity, file) instead of cutting */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 260ms; animation-timing-function: var(--ease); }
+
+/* back to top: appears once the page is scrolled well down; a CSS scroll timeline, no listener */
+.totop {
+  position: fixed; right: 20px; bottom: 20px; z-index: 20; display: grid; place-items: center;
+  width: 44px; height: 44px; border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ink) 92%, transparent); color: var(--text); font: 18px var(--mono);
+  opacity: 0; visibility: hidden; transform: translateY(12px); transition: border-color 140ms, color 140ms;
+}
+.totop:hover { border-color: var(--mint); color: var(--mint); }
+.totop span { transition: transform 200ms var(--ease); }
+.totop:hover span { transform: translateY(-3px); }
+@supports (animation-timeline: scroll()) {
+  .totop { animation: totop-in linear both; animation-timeline: scroll(root); animation-range: 900px 1300px; }
+}
+@keyframes totop-in { to { opacity: 1; visibility: visible; transform: none; } }
 
 /* small screens ------------------------------------------------------------ */
 @media (max-width: 900px) {
