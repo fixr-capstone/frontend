@@ -11,6 +11,7 @@ import FindingList, { FileIndex } from "@/components/FindingList";
 import { buildFixPrompt } from "@/lib/fixPrompt";
 import ZipView from "@/components/ZipView";
 import { ServerPill, WakeNote } from "@/components/ServerStatus";
+import CliPanel from "@/components/CliPanel";
 import { MAX_UPLOAD_MB, SNIPPET_FILE, checkBackend, scanZip, zipOne, zipPyFiles } from "@/lib/api";
 import Pipeline from "@/components/Pipeline";
 
@@ -64,6 +65,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [error, setError] = useState("");
   const [scanId, setScanId] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
+  const [cliOpen, setCliOpen] = useState(false);
   const [chatFocus, setChatFocus] = useState<Finding | null>(null);
   const [heroFindings, setHeroFindings] = useState<Finding[]>([]);
 
@@ -288,6 +290,9 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
           <a href="#" className="logo-link" aria-label="Fixr, back to top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Logo /></a>
           <nav className="header__nav">
             <ServerPill online={online} onClick={() => scrollTo("scanner")} />
+            <button type="button" className="nav-cli" onClick={() => setCliOpen(true)} aria-haspopup="dialog">
+              <span aria-hidden="true">›_</span><span className="nav-cli__label">CLI</span>
+            </button>
             <a href="#how" onClick={(e) => { e.preventDefault(); scrollTo("how"); }}>How it works</a>
             <a className="btn btn--sm" href="#scanner" onClick={(e) => { e.preventDefault(); scrollTo("scanner"); }}>Try the scanner</a>
           </nav>
@@ -295,7 +300,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
       </header>
 
       <main id="main">
-        <Hero findings={heroFindings} onPick={pickFromHero} onNav={scrollTo} />
+        <Hero findings={heroFindings} onPick={pickFromHero} onNav={scrollTo} onCli={() => setCliOpen(true)} />
 
         <Pipeline />
 
@@ -493,6 +498,8 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
       {phase === "results" && all.length > 0 && (
         <Chat key={scanId} open={chatOpen} onClose={closeChat} findings={all} focus={chatFocus} />
       )}
+
+      <CliPanel open={cliOpen} onClose={() => setCliOpen(false)} />
 
       <footer className="footer">
         <div className="wrap footer__inner">

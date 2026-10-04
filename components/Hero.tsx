@@ -10,10 +10,12 @@ export default function Hero({
   findings,
   onPick,
   onNav,
+  onCli,
 }: {
   findings: Finding[];
   onPick: (finding: Finding) => void;
   onNav: (id: string) => void;
+  onCli: () => void;
 }) {
   const [run, setRun] = useState(0);
   const [scanned, setScanned] = useState(0);
@@ -54,6 +56,11 @@ export default function Hero({
           <a className="btn btn--primary" href="#scanner" onClick={(e) => { e.preventDefault(); onNav("scanner"); }}>Scan your code</a>
           <a className="btn btn--ghost" href="#how" onClick={(e) => { e.preventDefault(); onNav("how"); }}>How it works</a>
         </div>
+        {/* the CLI, offered the way you would use it: as a command */}
+        <button type="button" className="hero__cli" onClick={onCli} aria-haspopup="dialog">
+          <code><i>$</i> fixr scan .<b aria-hidden="true" /></code>
+          <span>or run it on your own machine</span>
+        </button>
         {/* the actual pipeline, not a row of vanity numbers */}
         <p className="hero__stack" aria-label="Pipeline">
           <span>Bandit</span><span>pip-audit</span><span>deptry</span><span>flake8</span>

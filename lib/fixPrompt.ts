@@ -6,14 +6,14 @@ const DETAILED = 25;
 const LOCATIONS = 12;
 const SNIPPET_LINES = 15;
 // Fixr's explanation already judged these harmless; listing them as fixes invites pointless edits.
-const FALSE_ALARM = /\bfalse (positive|alarm)\b|no (code )?change is (required|needed)|no action is (required|needed)|\bis harmless\b/i;
+export const FALSE_ALARM = /\bfalse (positive|alarm)\b|no (code )?change is (required|needed)|no action is (required|needed)|\bis harmless\b/i;
 
 const block = (code: string) => {
   const lines = code.split("\n");
   return "```python\n" + lines.slice(0, SNIPPET_LINES).join("\n") + (lines.length > SNIPPET_LINES ? "\n# ..." : "") + "\n```";
 };
 const where = (f: Finding) => `\`${f.file}${f.line ? `:${f.line}` : ""}\``;
-const firstSentence = (s: string) => s.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0];
+export const firstSentence = (s: string) => s.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0];
 const isTest = (file: string) => /(^|\/)(tests?|testing)\/|(^|\/)test_[^/]*\.py$|_test\.py$/.test(file);
 
 function byRule(items: Finding[]) {
