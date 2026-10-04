@@ -822,30 +822,16 @@ kbd {
 .cli__title { margin: 0; font-family: var(--display); font-weight: 800; font-size: 36px; line-height: 0.9; text-transform: uppercase; }
 .cli__title span { margin-right: 4px; font-family: var(--mono); font-size: 22px; font-weight: 400; color: var(--mint); vertical-align: 0.15em; }
 .cli__body { overflow: auto; overscroll-behavior: contain; padding: 22px 24px 28px; }
-.cli__lead { margin: 0; max-width: 60ch; font-size: 15px; color: var(--muted); text-wrap: pretty; }
 .cli code { font-family: var(--mono); font-size: 0.92em; color: var(--text); }
 .cli a:not(.btn) { color: var(--mint); text-underline-offset: 3px; }
-.cli__block { margin-top: 28px; }
 .cli__label {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px;
   font: 12px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
 }
-.cli__hint { letter-spacing: 0; text-transform: none; color: var(--faint); }
-.cli__code, .cli__term {
+.cli__term {
   margin: 0; padding: 14px 16px; overflow-x: auto; background: var(--gutter); border: 1px solid var(--line); border-radius: var(--radius);
   font: 13px/1.65 var(--mono); color: var(--text);
 }
-.cli__code i, .cli__cmds i { font-style: normal; color: var(--mint); }
-.cli__note { margin: 10px 0 0; font-size: 13px; color: var(--faint); text-wrap: pretty; }
-.cli__cmds { list-style: none; margin: 0; padding: 0; border-bottom: 1px solid var(--line); }
-.cli__cmds button {
-  width: 100%; display: grid; gap: 3px; padding: 10px 6px; text-align: left; cursor: pointer;
-  background: none; border: 0; border-top: 1px solid var(--line); transition: background-color 140ms;
-}
-.cli__cmds button:hover { background: var(--surface); }
-.cli__cmds button:hover code { color: var(--mint-hi); }
-.cli__cmds code { font-size: 13px; overflow-wrap: anywhere; }
-.cli__cmds button > span { font-size: 12px; color: var(--faint); }
 .cli__term { font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .cli__term span { animation: rise 260ms var(--ease) both; animation-delay: calc(200ms + min(var(--i), 40) * 45ms); }
 .cli__term .t-cmd { color: var(--mint); }
@@ -854,6 +840,61 @@ kbd {
 .cli__term .t-high { color: #FF9F45; }
 .cli__term .t-medium { color: #F5C84C; }
 .cli__term .t-low { color: var(--muted); }
+.cli__sub { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
+.cli__head { align-items: flex-start; }
+
+/* system picker: commands differ between Windows, macOS and Linux */
+.cli__os { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cli__os button {
+  padding: 8px 14px; cursor: pointer; background: transparent; border: 1px solid var(--line-strong); border-radius: var(--radius);
+  font: 13px var(--mono); color: var(--muted); transition: background-color 140ms, color 140ms, border-color 140ms;
+}
+.cli__os button:hover { color: var(--text); }
+.cli__os button[aria-selected="true"] { background: var(--text); border-color: var(--text); color: var(--ink); }
+.cli__progress { margin-left: auto; font: 12px var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+
+/* the guide: a numbered timeline, each step ticking itself off once its command is copied */
+.steps { list-style: none; margin: 22px 0 0; padding: 0; }
+.step { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 16px; padding-bottom: 26px; }
+.step:not(:last-child)::before { content: ""; position: absolute; left: 16px; top: 36px; bottom: 4px; width: 1px; background: var(--line-strong); }
+.step.is-done:not(:last-child)::before { background: color-mix(in srgb, var(--mint) 60%, transparent); }
+.step__mark {
+  position: relative; z-index: 1; width: 34px; height: 34px; padding: 0; cursor: pointer;
+  display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--ink);
+  font: 600 14px var(--mono); color: var(--text); transition: background-color 200ms, border-color 200ms, color 200ms, transform 200ms var(--ease);
+}
+.step__mark:hover { border-color: var(--mint); }
+.step.is-done .step__mark { background: var(--mint); border-color: var(--mint); color: var(--ink); transform: scale(1.04); }
+.step__main { min-width: 0; padding-top: 5px; }
+.step__title { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.step.is-done .step__title { color: var(--muted); }
+.step__body, .step__after { margin: 6px 0 0; font-size: 14px; line-height: 1.6; color: var(--muted); text-wrap: pretty; }
+.step__after { color: var(--faint); font-size: 13px; }
+.step__cmd { position: relative; margin-top: 12px; }
+.step__cmd pre {
+  margin: 0; padding: 13px 84px 13px 14px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--gutter);
+  border: 1px solid var(--line); border-radius: var(--radius); font: 13px/1.6 var(--mono); color: var(--text);
+}
+.step__cmd i { font-style: normal; color: var(--mint); }
+.step__copy {
+  position: absolute; top: 8px; right: 8px; padding: 6px 12px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius);
+  font: 12px var(--mono); color: var(--text); transition: border-color 140ms, background-color 140ms, color 140ms;
+}
+.step__copy:hover { border-color: var(--mint); }
+.step__copy.is-copied { background: var(--mint); border-color: var(--mint); color: var(--ink); }
+
+.cli__next { margin-top: 6px; padding: 14px 16px; border: 1px dashed color-mix(in srgb, var(--mint) 50%, transparent); border-radius: var(--radius); }
+.cli__next .cli__label { margin: 0 0 6px; }
+.cli__next p { margin: 0; font-size: 14px; color: var(--muted); }
+.cli__more { margin-top: 14px; border-top: 1px solid var(--line); }
+.cli__more summary { padding: 14px 0 4px; cursor: pointer; font: 13px var(--mono); color: var(--muted); }
+.cli__more summary:hover { color: var(--text); }
+.cli__more[open] summary { color: var(--text); }
+.cli__more dl { margin: 8px 0 0; display: grid; gap: 12px; }
+.cli__more dt { font-size: 14px; font-weight: 600; }
+.cli__more dd { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.cli__more .cli__term { margin-top: 10px; }
 .cli__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 16px 24px; border-top: 1px solid var(--line); }
 .cli__foot span { font-size: 12px; color: var(--faint); }
 @media (prefers-reduced-motion: reduce) { .cli[open] { animation: none; } }
@@ -923,6 +964,8 @@ kbd {
   .srv__long { display: none; }
   .nav-cli { padding: 7px 9px; }
   .nav-cli__label { display: none; }
+  .cli__title { font-size: 28px; }
+  .cli__head, .cli__body, .cli__foot { padding-inline: 18px; }
   .hero__ctas .btn { flex: 1 1 0; padding-inline: 12px; }
   /* how it works must fit one phone screen while pinned: tighter numbers, lines and no caption */
   .how__num { font-size: 60px; }
