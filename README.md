@@ -5,7 +5,8 @@ Security triage for AI-written Python. Single page, no routing, no auth.
 A capstone project by Parth, Sparsh, Anushka and Shrey.
 
 The three sample files have prepared results in `lib/samples.json`: a snapshot of what the real backend returns for them, including the LLM explanations. Anything else (edited
-samples, pasted code, an uploaded `.zip`) is scanned live by the Fixr backend.
+samples, pasted code, an uploaded `.zip`, a public GitHub link) is scanned live by the Fixr backend.
+For a GitHub link the backend downloads the repository itself (`POST /api/v0/repositories/github`).
 
 Live: https://frontend-rho-two-59.vercel.app (frontend, Vercel) and https://fixr-api-q4k7.onrender.com (backend, Render).
 
@@ -78,6 +79,7 @@ Before a demo, open the site a minute early so the server is already awake.
 - `lib/highlight.tsx`: small Python tokenizer used by the editor and the code blocks
 - `lib/findings.ts`: sample data and sample source files
 - `lib/api.ts`: live scans and chat. Zips pasted code, posts to the backend, maps its findings to the page's shape
+- `lib/report.ts`: the security grade, the one-line verdict under it, and the printable report behind "Report (PDF)". Each kind of issue costs points by severity, repeats add little, likely false alarms and style notes do not count
 - `lib/fixPrompt.ts`: the downloadable fix prompt; `node lib/fixPrompt.check.mts` checks it
 - `lib/signal.ts`: the bar layout and counts used by the hero, derived from `lib/samples.json`
 - `lib/samples.json`: real backend output for the three samples (after editing a sample, or after a scanner change, regenerate with `scripts/snapshot_samples.py`)
