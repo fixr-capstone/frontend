@@ -9,10 +9,11 @@ import Logo from "@/components/Logo";
 import XRay from "@/components/XRay";
 import FindingList, { FileIndex } from "@/components/FindingList";
 import { buildFixPrompt } from "@/lib/fixPrompt";
+import { buildReport, grade, verdict } from "@/lib/report";
 import ZipView from "@/components/ZipView";
 import { ServerPill, WakeNote } from "@/components/ServerStatus";
 import CliPanel from "@/components/CliPanel";
-import { MAX_UPLOAD_MB, SNIPPET_FILE, checkBackend, scanZip, zipOne, zipPyFiles } from "@/lib/api";
+import { MAX_UPLOAD_MB, SNIPPET_FILE, checkBackend, githubRepo, scanGithub, scanZip, zipOne, zipPyFiles } from "@/lib/api";
 import Pipeline from "@/components/Pipeline";
 
 /** Same order as the real pipeline. */
@@ -56,7 +57,8 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
   const [fileFilter, setFileFilter] = useState<string | null>(null);
   const [warn, setWarn] = useState("");
   const [online, setOnline] = useState<boolean | null>(null);
-  const [zip, setZip] = useState<{ name: string; size: number; files: string[] } | null>(null);
+  const [zip, setZip] = useState<{ name: string; size: number | null; files: string[] } | null>(null);
+  const [repoUrl, setRepoUrl] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -193,6 +195,19 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     run("zip", async () => ({ raw: null, findings: await scanZip(file) }));
   };
 
+  const scanRepo = () => {
+    const name = githubRepo(repoUrl);
+    if (!name) { setWarn("Paste a GitHub repository link, like https://github.com/owner/repo"); return; }
+    setZip({ name, size: null, files: [] });
+    run("zip", async () => {
+      const { findings, files } = await scanGithub(repoUrl);
+      // GitHub wraps the archive in "<repo>-<commit sha>/"; the repo name already says it
+      const unwrap = (path: string) => path.replace(/^[^/]+\//, "");
+      setZip({ name, size: null, files: files.map(unwrap) });
+      return { raw: null, findings: findings.map((f) => ({ ...f, file: unwrap(f.file) })) };
+    });
+  };
+
   const onDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
@@ -244,12 +259,24 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     URL.revokeObjectURL(url);
   };
 
+  // A print-ready page; the browser's print dialog saves it as a PDF.
+  const downloadReport = () => {
+    const w = window.open("", "_blank");
+    if (!w) { setWarn("Allow pop-ups for this site to open the report."); return; }
+    const project = zipView?.name ?? (source === "code" ? "Pasted code" : editorFile ?? "Scan");
+    w.document.write(buildReport(findings, notes, project));
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
   const loading = phase === "loading";
   const zipView = source === "zip" && zip !== null && phase !== "idle" ? zip : null;
   const all = phase === "results" ? results.findings : [];
   const findings = all.filter((f) => !f.style);
   const notes = all.filter((f) => f.style);
   const fileCount = new Set(findings.map((f) => f.file)).size;
+  const g = grade(findings);
   const lines = code.split("\n");
   const editorFile = source === "zip" ? null : source === "code" ? SNIPPET_FILE : example === "minor" ? "profile.py" : example === "clean" ? "clean.py" : "app.py";
   const notesBlock = notes.length > 0 && (
@@ -307,7 +334,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
         <section className="wrap scanner" id="scanner">
           <h2 className="h2" data-reveal>Scan it</h2>
           <p className="scanner__note" data-reveal style={{ ["--d" as string]: "90ms" }}>
-            The samples have prepared results. Edit one or paste your own Python and it goes to the Fixr backend, or drop in a whole project as a .zip.
+            The samples have prepared results. Edit one or paste your own Python and it goes to the Fixr backend, drop in a whole project as a .zip, or paste a public GitHub link.
           </p>
           <div data-reveal style={{ ["--d" as string]: "120ms" }}>
             <WakeNote online={online} />
@@ -332,7 +359,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
             {dragging && <div className="drop" aria-hidden="true"><b>Drop to scan</b><span>A .zip scans the project. A .py file opens here.</span></div>}
             <div className="editor__bar">
               <span>{zipView ? zipView.name : example && isSample ? `${example === "minor" ? "profile" : "app"}.py` : "untitled.py"}</span>
-              <span>{zipView ? zipView.size < 1048576 ? `${Math.ceil(zipView.size / 1024)} KB` : `${(zipView.size / 1048576).toFixed(1)} MB` : `${lines.length} ${lines.length === 1 ? "line" : "lines"}`}</span>
+              <span>{zipView ? zipView.size === null ? "GitHub" : zipView.size < 1048576 ? `${Math.ceil(zipView.size / 1024)} KB` : `${(zipView.size / 1048576).toFixed(1)} MB` : `${lines.length} ${lines.length === 1 ? "line" : "lines"}`}</span>
             </div>
 
             <div className="editor__body">
@@ -402,6 +429,19 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
               Upload .zip
               <input type="file" accept=".zip,application/zip" hidden disabled={loading} onChange={(e) => { scanUpload(e.target.files?.[0]); e.target.value = ""; }} />
             </label>
+            <form className="repo" onSubmit={(e) => { e.preventDefault(); if (!loading) scanRepo(); }}>
+              <input
+                className="repo__input"
+                type="url"
+                inputMode="url"
+                value={repoUrl}
+                onChange={(e) => { setRepoUrl(e.target.value); setWarn(""); }}
+                placeholder="github.com/owner/repo"
+                aria-label="Public GitHub repository link"
+                disabled={loading}
+              />
+              <button className="btn btn--ghost" type="submit" disabled={loading || !repoUrl.trim()}>Scan repo</button>
+            </form>
             {(phase === "results" || phase === "error") && (
               <button className="btn btn--ghost" onClick={reset}>Start over</button>
             )}
@@ -432,7 +472,8 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                 <div className="panel__big">Scan failed</div>
                 <p>{error}</p>
               </div>
-              {source !== "zip" && <button className="btn btn--ghost" onClick={scan}>Scan again</button>}
+              {source !== "zip" ? <button className="btn btn--ghost" onClick={scan}>Scan again</button>
+                : zip?.size === null && <button className="btn btn--ghost" onClick={scanRepo}>Scan again</button>}
             </div>
           )}
 
@@ -446,6 +487,10 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
           {phase === "results" && findings.length > 0 && (
             <>
               <div className="summary">
+                <div className={`grade grade--${g.letter}`} title="Score from the real findings: each kind of issue costs points by severity; likely false alarms and style notes do not count.">
+                  <span className="grade__letter">{g.letter}</span>
+                  <span className="grade__label">Security grade<b>{g.score}/100</b></span>
+                </div>
                 <div className="summary__nums">
                   {results.raw !== null && (
                     <>
@@ -462,6 +507,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                   <strong>{findings.length} left to fix.</strong>
                 </p>
               </div>
+              <p className="verdict">{verdict(g)}</p>
 
               <div className="handoff">
                 <p className="handoff__text">
@@ -472,6 +518,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                   <button className={`btn btn--ghost ${copied === "prompt" ? "is-copied" : ""}`} onClick={() => copy("prompt", buildFixPrompt(findings, notes))}>
                     {copied === "prompt" ? "Copied" : "Copy prompt"}
                   </button>
+                  <button className="btn btn--ghost" onClick={downloadReport}>Report (PDF)</button>
                   <button className="btn btn--ghost" onClick={() => openChat(null)}>Ask Fixr</button>
                 </div>
               </div>

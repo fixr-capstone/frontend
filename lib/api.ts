@@ -13,7 +13,8 @@ export type ApiFinding = {
   line: number | null;
   message: string;
   snippet: string | null;
-  metadata: { explanation?: string };
+  tp_probability?: number;
+  metadata: { explanation?: string; likely_false_alarm?: boolean };
 };
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
@@ -97,13 +98,17 @@ export function flaggedLines(snippet: string, line: number) {
 export function toFinding(f: ApiFinding, i: number): Finding {
   const severity: Severity = f.severity === "high" || f.severity === "medium" ? f.severity : "low";
   const { description, fix } = splitExplanation(f.metadata?.explanation ?? "");
+  // High severity is never hidden; when the classifier doubts it, it is kept and said so.
+  const doubt = f.metadata?.likely_false_alarm
+    ? `Likely false alarm: Fixr's classifier puts the chance this is real at ${(f.tp_probability ?? 0) < 0.01 ? "under 1" : Math.round((f.tp_probability ?? 0) * 100)}%. Check it before ignoring it. `
+    : "";
   return {
     id: `api${i}`,
     style: f.category === "style",
     rule: f.rule_id,
     severity,
     title: f.message.replace(/:\s*'[^']*'$/, ""),
-    description: description || `${f.rule_id}: ${f.message}`,
+    description: doubt + (description || `${f.rule_id}: ${f.message}`),
     file: f.file_path.replace(/\\/g, "/").split("/repository/").pop() ?? f.file_path,
     line: f.line ?? 0,
     snippet: flaggedLines(f.snippet ?? "", f.line ?? 0),
@@ -135,20 +140,36 @@ export async function zipPyFiles(file: Blob): Promise<string[]> {
   return files;
 }
 
-export async function scanZip(zip: Blob): Promise<Finding[]> {
-  const body = new FormData();
-  body.append("file", zip, "upload.zip");
+async function postScan(path: string, init: RequestInit): Promise<{ findings: Finding[]; files: string[] }> {
   let res: Response;
   try {
-    res = await fetch(`${API}/api/v0/repositories`, { method: "POST", body });
+    res = await fetch(`${API}/api/v0/${path}`, { method: "POST", ...init });
   } catch {
     throw new Error("Could not reach the Fixr backend.");
   }
-  if (res.status === 413) throw new Error("That upload is too large for the scanner.");
   if (res.status === 429) throw new Error("Too many scans in a short time. Try again in a minute.");
-  if (!res.ok) throw new Error(`The Fixr backend returned ${res.status}.`);
-  const data: { findings: ApiFinding[] } = await res.json();
-  return data.findings.map(toFinding);
+  if (!res.ok) {
+    const detail = await res.json().then((d) => (typeof d.detail === "string" ? d.detail : ""), () => "");
+    throw new Error(detail || (res.status === 413 ? "That upload is too large for the scanner." : `The Fixr backend returned ${res.status}.`));
+  }
+  const data: { findings: ApiFinding[]; files?: string[] } = await res.json();
+  return { findings: data.findings.map(toFinding), files: data.files ?? [] };
+}
+
+export async function scanZip(zip: Blob): Promise<Finding[]> {
+  const body = new FormData();
+  body.append("file", zip, "upload.zip");
+  return (await postScan("repositories", { body })).findings;
+}
+
+/** The backend downloads the public repo itself, then scans it exactly like an uploaded .zip. */
+export const scanGithub = (url: string) =>
+  postScan("repositories/github", { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) });
+
+/** "owner/repo" from a GitHub link, or null when it is not one. */
+export function githubRepo(url: string): string | null {
+  const m = url.trim().match(/^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:\/tree\/[\w./-]+)?\/?$/);
+  return m ? `${m[1]}/${m[2]}` : null;
 }
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };

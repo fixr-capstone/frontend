@@ -16,7 +16,7 @@ const where = (f: Finding) => `\`${f.file}${f.line ? `:${f.line}` : ""}\``;
 export const firstSentence = (s: string) => s.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0];
 const isTest = (file: string) => /(^|\/)(tests?|testing)\/|(^|\/)test_[^/]*\.py$|_test\.py$/.test(file);
 
-function byRule(items: Finding[]) {
+export function byRule(items: Finding[]) {
   const groups = new Map<string, Finding[]>();
   for (const f of items) {
     const key = f.rule ?? f.title;
