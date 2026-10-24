@@ -1,11 +1,11 @@
-# Fixr
+# SCNR
 
 Security triage for AI-written Python. Single page, no routing, no auth.
 
 A capstone project by Parth, Sparsh, Anushka and Shrey.
 
 The three sample files have prepared results in `lib/samples.json`: a snapshot of what the real backend returns for them, including the LLM explanations. Anything else (edited
-samples, pasted code, an uploaded `.zip`, a public GitHub link) is scanned live by the Fixr backend.
+samples, pasted code, an uploaded `.zip`, a public GitHub link) is scanned live by the SCNR backend.
 For a GitHub link the backend downloads the repository itself (`POST /api/v0/repositories/github`).
 
 Live: https://frontend-rho-two-59.vercel.app (frontend, Vercel) and https://fixr-api-q4k7.onrender.com (backend, Render).
@@ -64,18 +64,18 @@ Before a demo, open the site a minute early so the server is already awake.
 
 - `app/layout.tsx`: fonts (Big Shoulders Display, Space Grotesk, JetBrains Mono) and metadata
 - `app/globals.css`: the whole design system. One dark theme, one accent (mint), 2px corners
-- `components/Fixr.tsx`: the page. Header, hero, scanner with a flagged-line gutter, results
+- `components/Scnr.tsx`: the page. Header, hero, scanner with a flagged-line gutter, results
 - `components/Hero.tsx`: the hero. A scan line sweeps the messy sample's raw warnings, crossing out the headline as it goes; false alarms and style notes collapse and the findings worth fixing rise, numbered by priority
 - `components/Logo.tsx`: code brackets around one mint bar (the line that matters) and the wordmark; `app/icon.svg` is the same mark as the favicon
 - `components/ServerStatus.tsx`: the header status pill and the waking banner
-- `components/CliPanel.tsx`: "Fixr on your computer", opened from `›_ CLI` in the header or the `$ fixr scan .` line under the hero buttons. A step-by-step guide for people who have never used a terminal: it picks Windows, macOS or Linux for you, says how to open a terminal, gives each command with a Copy button (a step ticks itself off when its command is copied), scans by dragging the project folder into the terminal, and has a short troubleshooting list and a preview of the report. A website cannot start a program on someone's computer, so the guide is the bridge. The CLI itself lives in [fixr-capstone/cli](https://github.com/fixr-capstone/cli) (private)
+- `components/CliPanel.tsx`: "SCNR on your computer", opened from `›_ CLI` in the header or the `$ fixr scan .` line under the hero buttons. A step-by-step guide for people who have never used a terminal: it picks Windows, macOS or Linux for you, says how to open a terminal, gives each command with a Copy button (a step ticks itself off when its command is copied), scans by dragging the project folder into the terminal, and has a short troubleshooting list and a preview of the report. A website cannot start a program on someone's computer, so the guide is the bridge. The CLI itself lives in [fixr-capstone/cli](https://github.com/fixr-capstone/cli) (private)
 - `app/error.tsx`: the error page for unexpected runtime errors
 - `app/not-found.tsx`: the 404 page
 - `components/Pipeline.tsx`: how it works. The section pins while you scroll and runs scan, filter, rank and explain over the real `app.py` scan, line by line
 - `components/ZipView.tsx`: an uploaded project's Python files, read from the archive in the browser. A read head steps down them while scanning; each then shows its finding count
 - `components/FindingList.tsx`: the results list and its toolbar, plus the file explorer that replaces the x-ray when a scan covers more than 6 files (see Results)
 - `components/XRay.tsx`: results minimap for scans of up to 6 files. Each file drawn one bar per line, findings lit by severity and numbered by priority, linked to the list
-- `components/Chat.tsx`: the Ask Fixr drawer
+- `components/Chat.tsx`: the Ask SCNR drawer
 - `lib/highlight.tsx`: small Python tokenizer used by the editor and the code blocks
 - `lib/findings.ts`: sample data and sample source files
 - `lib/api.ts`: live scans and chat. Zips pasted code, posts to the backend, maps its findings to the page's shape
@@ -93,17 +93,17 @@ response: `unknown` severity shows as `low`, the fix code block is pulled out of
 summary.
 
 Render sits behind Cloudflare, whose firewall blocks request bodies that look like SQL injection
-or similar, and Fixr's own findings quote exactly that. So nothing goes out as plain text: pasted
+or similar, and SCNR's own findings quote exactly that. So nothing goes out as plain text: pasted
 code is sent as a deflated one-file ZIP, and the chat body is gzipped (`Content-Encoding: gzip`),
 which the backend inflates.
 
 ## Fix prompt
 
-After a scan, "Download fix prompt" saves `fixr-fix-prompt.md` (`lib/fixPrompt.ts`), a brief for
+After a scan, "Download fix prompt" saves `scnr-fix-prompt.md` (`lib/fixPrompt.ts`), a brief for
 the AI tool that wrote the code. It is built in the browser and needs no backend, and it stays
 short on big projects (a 454-finding scan gives about 12 KB):
 
-- **Fix these:** the top 25 findings in priority order that are medium or above, or that Fixr
+- **Fix these:** the top 25 findings in priority order that are medium or above, or that SCNR
   explained, each with the flagged code, what is wrong and the suggested fix.
 - **Lower-priority issues:** the rest, grouped by rule, with the names involved, a dozen
   locations and a note when they are in test files. Names that are the project's own folders
@@ -118,7 +118,7 @@ summaries, rotate leaked secrets.
 
 ## Chat
 
-The "Ask Fixr" drawer (`components/Chat.tsx`) talks to this endpoint on the backend. Without it the drawer shows "Chat is not switched on yet".
+The "Ask SCNR" drawer (`components/Chat.tsx`) talks to this endpoint on the backend. Without it the drawer shows "Chat is not switched on yet".
 
 `POST /api/v0/chat`, JSON body, gzipped:
 
