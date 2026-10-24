@@ -24,6 +24,8 @@ const STATUS_LINES = [
   "Explaining the top findings",
 ];
 const SCAN_MS = 3600;
+// A deliberately vulnerable public Flask app, for trying the GitHub scan
+const DEMO_REPO = "https://github.com/we45/Vulnerable-Flask-App";
 
 type Phase = "idle" | "loading" | "results" | "error";
 type Source = "sample" | "code" | "zip";
@@ -48,7 +50,7 @@ function CountDown({ from, to, className }: { from: number; to: number; classNam
   return <span className={className}>{n}</span>;
 }
 
-export default function Fixr({ forceError = false }: { forceError?: boolean }) {
+export default function Scnr({ forceError = false }: { forceError?: boolean }) {
   const [example, setExample] = useState<ExampleKey | null>(null);
   const [code, setCode] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -195,12 +197,12 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
     run("zip", async () => ({ raw: null, findings: await scanZip(file) }));
   };
 
-  const scanRepo = () => {
-    const name = githubRepo(repoUrl);
+  const scanRepo = (url = repoUrl) => {
+    const name = githubRepo(url);
     if (!name) { setWarn("Paste a GitHub repository link, like https://github.com/owner/repo"); return; }
     setZip({ name, size: null, files: [] });
     run("zip", async () => {
-      const { findings, files } = await scanGithub(repoUrl);
+      const { findings, files } = await scanGithub(url);
       // GitHub wraps the archive in "<repo>-<commit sha>/"; the repo name already says it
       const unwrap = (path: string) => path.replace(/^[^/]+\//, "");
       setZip({ name, size: null, files: files.map(unwrap) });
@@ -254,7 +256,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
 
   const downloadPrompt = () => {
     const url = URL.createObjectURL(new Blob([buildFixPrompt(findings, notes)], { type: "text/markdown" }));
-    const a = Object.assign(document.createElement("a"), { href: url, download: "fixr-fix-prompt.md" });
+    const a = Object.assign(document.createElement("a"), { href: url, download: "scnr-fix-prompt.md" });
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -314,7 +316,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
       <a className="skip" href="#main">Skip to content</a>
       <header className="header">
         <div className="wrap header__inner">
-          <a href="#" className="logo-link" aria-label="Fixr, back to top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Logo /></a>
+          <a href="#" className="logo-link" aria-label="SCNR, back to top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Logo /></a>
           <nav className="header__nav">
             <ServerPill online={online} onClick={() => scrollTo("scanner")} />
             <button type="button" className="nav-cli" onClick={() => setCliOpen(true)} aria-haspopup="dialog">
@@ -334,7 +336,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
         <section className="wrap scanner" id="scanner">
           <h2 className="h2" data-reveal>Scan it</h2>
           <p className="scanner__note" data-reveal style={{ ["--d" as string]: "90ms" }}>
-            The samples have prepared results. Edit one or paste your own Python and it goes to the Fixr backend, drop in a whole project as a .zip, or paste a public GitHub link.
+            The samples have prepared results. Edit one or paste your own Python and it goes to the SCNR backend, drop in a whole project as a .zip, or paste a public GitHub link.
           </p>
           <div data-reveal style={{ ["--d" as string]: "120ms" }}>
             <WakeNote online={online} />
@@ -416,7 +418,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                 />
                 {loading && !zipView && <span className="beam" aria-hidden="true" />}
               </div>
-              {zipView && <ZipView files={zipView.files} live={loading} findings={phase === "results" ? findings : null} />}
+              {zipView && <ZipView files={zipView.files} pending={zipView.size === null ? "Downloading from GitHub" : undefined} live={loading} findings={phase === "results" ? findings : null} />}
             </div>
           </div>
           </div>
@@ -432,8 +434,10 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
             <form className="repo" onSubmit={(e) => { e.preventDefault(); if (!loading) scanRepo(); }}>
               <input
                 className="repo__input"
-                type="url"
+                type="text"
                 inputMode="url"
+                spellCheck={false}
+                autoComplete="off"
                 value={repoUrl}
                 onChange={(e) => { setRepoUrl(e.target.value); setWarn(""); }}
                 placeholder="github.com/owner/repo"
@@ -448,8 +452,15 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
             {warn && <span className="warn" role="alert">{warn}</span>}
             <span className="kbd-hint"><kbd>Ctrl</kbd> <kbd>Enter</kbd> to scan</span>
           </div>
+          <p className="try-repo">
+            No repo to hand? Try{" "}
+            <button type="button" disabled={loading} onClick={() => { setRepoUrl(DEMO_REPO); scanRepo(DEMO_REPO); }}>
+              {DEMO_REPO.replace("https://github.com/", "")}
+            </button>
+            , a Flask app built to be insecure.
+          </p>
           <p className="privacy">
-            Your code goes to the Fixr backend for the scan and is deleted when it finishes. The functions around the top
+            Your code goes to the SCNR backend for the scan and is deleted when it finishes. The functions around the top
             findings are sent to an AI model (Groq) to write the explanations. Results are guidance, not a security audit.
           </p>
 
@@ -473,7 +484,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                 <p>{error}</p>
               </div>
               {source !== "zip" ? <button className="btn btn--ghost" onClick={scan}>Scan again</button>
-                : zip?.size === null && <button className="btn btn--ghost" onClick={scanRepo}>Scan again</button>}
+                : zip?.size === null && <button className="btn btn--ghost" onClick={() => scanRepo()}>Scan again</button>}
             </div>
           )}
 
@@ -503,7 +514,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                 <p className="summary__text">
                   {results.raw !== null
                     ? `${results.raw} raw warnings: ${results.raw - all.length} dropped as ${results.raw - all.length === 1 ? "a likely false alarm" : "likely false alarms"}, ${notes.length} style notes set aside. `
-                    : `Filtered and ranked by the Fixr backend${source === "zip" ? `, across ${fileCount} ${fileCount === 1 ? "file" : "files"}` : ""}${notes.length ? `; ${notes.length} style ${notes.length === 1 ? "note" : "notes"} set aside` : ""}. `}
+                    : `Filtered and ranked by the SCNR backend${source === "zip" ? `, across ${fileCount} ${fileCount === 1 ? "file" : "files"}` : ""}${notes.length ? `; ${notes.length} style ${notes.length === 1 ? "note" : "notes"} set aside` : ""}. `}
                   <strong>{findings.length} left to fix.</strong>
                 </p>
               </div>
@@ -519,7 +530,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
                     {copied === "prompt" ? "Copied" : "Copy prompt"}
                   </button>
                   <button className="btn btn--ghost" onClick={downloadReport}>Report (PDF)</button>
-                  <button className="btn btn--ghost" onClick={() => openChat(null)}>Ask Fixr</button>
+                  <button className="btn btn--ghost" onClick={() => openChat(null)}>Ask SCNR</button>
                 </div>
               </div>
 
@@ -573,7 +584,7 @@ export default function Fixr({ forceError = false }: { forceError?: boolean }) {
           </div>
         </div>
         <div className="wrap footer__base">
-          <span>Fixr, a capstone project by Parth, Sparsh, Anushka and Shrey</span>
+          <span>SCNR, a capstone project by Parth, Sparsh, Anushka and Shrey</span>
           <span>Sample results are prepared. Your own code is scanned live.</span>
         </div>
       </footer>

@@ -5,7 +5,7 @@ const SECRET_RULES = new Set(["B105", "B106", "B107"]);
 const DETAILED = 25;
 const LOCATIONS = 12;
 const SNIPPET_LINES = 15;
-// Fixr's explanation already judged these harmless; listing them as fixes invites pointless edits.
+// SCNR's explanation already judged these harmless; listing them as fixes invites pointless edits.
 export const FALSE_ALARM = /\bfalse (positive|alarm)\b|no (code )?change is (required|needed)|no action is (required|needed)|\bis harmless\b/i;
 
 const block = (code: string) => {
@@ -55,9 +55,9 @@ export function buildFixPrompt(findings: Finding[], notes: Finding[]): string {
   const out = [
     "# Security fixes for this project",
     "",
-    "You are helping someone fix security problems that Fixr, an automated scanner, found in their Python code. They may not be a developer and may not be able to review code changes, so work carefully and explain in plain words.",
+    "You are helping someone fix security problems that SCNR, an automated scanner, found in their Python code. They may not be a developer and may not be able to review code changes, so work carefully and explain in plain words.",
     "",
-    `Fixr found ${findings.length} ${findings.length === 1 ? "issue" : "issues"}: ${detailed.length} to fix, ${rest.length} lower-priority ${rest.length === 1 ? "one" : "ones"} grouped by type, and ${falseAlarms.length} likely false ${falseAlarms.length === 1 ? "alarm" : "alarms"}.`,
+    `SCNR found ${findings.length} ${findings.length === 1 ? "issue" : "issues"}: ${detailed.length} to fix, ${rest.length} lower-priority ${rest.length === 1 ? "one" : "ones"} grouped by type, and ${falseAlarms.length} likely false ${falseAlarms.length === 1 ? "alarm" : "alarms"}.`,
     "",
     "## How to work",
     "",
@@ -107,7 +107,7 @@ export function buildFixPrompt(findings: Finding[], notes: Finding[]): string {
   }
 
   if (falseAlarms.length) {
-    out.push("## Likely false alarms, leave these alone", "", "Fixr's review found these are not real problems in this code. Do not change them.", "");
+    out.push("## Likely false alarms, leave these alone", "", "SCNR's review found these are not real problems in this code. Do not change them.", "");
     falseAlarms.forEach((f) => out.push(`- ${where(f)} ${f.rule ?? ""} ${f.title}. ${firstSentence(f.description)}`));
     out.push("");
   }

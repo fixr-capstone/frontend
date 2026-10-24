@@ -4,7 +4,7 @@ const SHOWN = 11;
 const RANK: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
 /** The uploaded project's Python files: a read head steps down them while scanning, counts land after. */
-export default function ZipView({ files, live, findings }: { files: string[]; live: boolean; findings: Finding[] | null }) {
+export default function ZipView({ files, live, findings, pending = "Reading the archive" }: { files: string[]; live: boolean; findings: Finding[] | null; pending?: string }) {
   const hits = new Map<string, { n: number; worst: Severity }>();
   for (const f of findings ?? []) {
     if (f.style) continue;
@@ -17,7 +17,7 @@ export default function ZipView({ files, live, findings }: { files: string[]; li
   return (
     <div className={`unpack ${live ? "is-live" : ""}`} style={{ ["--n" as string]: Math.max(shown.length, 1) }}>
       <p className="unpack__head">
-        {files.length ? `${files.length} Python ${files.length === 1 ? "file" : "files"}` : "Reading the archive"}
+        {files.length ? `${files.length} Python ${files.length === 1 ? "file" : "files"}` : pending}
         <span>{live ? "Scanning the project" : findings ? "Scanned" : ""}</span>
       </p>
       <ol className="unpack__files">

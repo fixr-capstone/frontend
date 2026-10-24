@@ -50,7 +50,7 @@ export default function Hero({
           <span className="hero__real">{REAL_AT.length} worth fixing.</span>
         </h1>
         <p className="hero__sub">
-          Fixr runs four Python scanners over AI-written code, filters out their false alarms, and explains what is left.
+          SCNR runs four Python scanners over AI-written code, filters out their false alarms, and explains what is left.
         </p>
         <div className="hero__ctas">
           <a className="btn btn--primary" href="#scanner" onClick={(e) => { e.preventDefault(); onNav("scanner"); }}>Scan your code</a>
@@ -65,7 +65,7 @@ export default function Hero({
         <p className="hero__stack" aria-label="Pipeline">
           <span>Bandit</span><span>pip-audit</span><span>deptry</span><span>flake8</span>
           <i aria-hidden="true">→</i>
-          <span>XGBoost false-alarm filter, 94.8% accurate</span>
+          <span>XGBoost false-alarm filter, no real bug dropped in testing</span>
           <i aria-hidden="true">→</i>
           <span>explanations by an LLM on Groq</span>
         </p>

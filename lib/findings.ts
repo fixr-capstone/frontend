@@ -32,11 +32,12 @@ export const EXAMPLES: Record<ExampleKey, { label: string; code: string }> = {
 import os
 import random
 import requests
+import xml.etree.ElementTree as ET
 
 API_TOKEN = "sk-live-4f9a2b8c1d3e4f5a6b7c8d9e0f1a2b3c"
 
-def cache_key(payload):
-    return hashlib.md5(payload.encode()).hexdigest()
+def hash_password(password):
+    return hashlib.md5(password.encode()).hexdigest()
 
 def retry_delay(attempt):
     return 2 ** attempt + random.random()
@@ -55,6 +56,9 @@ def fetch_external_data(url):
         return requests.get(url, headers={"Authorization": API_TOKEN}).json()
     except:
         pass
+
+def load_settings(path="settings.xml"):
+    return ET.parse(path).getroot()
 `,
   },
   minor: {

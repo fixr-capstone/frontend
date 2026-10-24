@@ -100,7 +100,7 @@ export function toFinding(f: ApiFinding, i: number): Finding {
   const { description, fix } = splitExplanation(f.metadata?.explanation ?? "");
   // High severity is never hidden; when the classifier doubts it, it is kept and said so.
   const doubt = f.metadata?.likely_false_alarm
-    ? `Likely false alarm: Fixr's classifier puts the chance this is real at ${(f.tp_probability ?? 0) < 0.01 ? "under 1" : Math.round((f.tp_probability ?? 0) * 100)}%. Check it before ignoring it. `
+    ? `Likely false alarm: SCNR's classifier puts the chance this is real at ${(f.tp_probability ?? 0) < 0.01 ? "under 1" : Math.round((f.tp_probability ?? 0) * 100)}%. Check it before ignoring it. `
     : "";
   return {
     id: `api${i}`,
@@ -145,12 +145,12 @@ async function postScan(path: string, init: RequestInit): Promise<{ findings: Fi
   try {
     res = await fetch(`${API}/api/v0/${path}`, { method: "POST", ...init });
   } catch {
-    throw new Error("Could not reach the Fixr backend.");
+    throw new Error("Could not reach the SCNR backend.");
   }
   if (res.status === 429) throw new Error("Too many scans in a short time. Try again in a minute.");
   if (!res.ok) {
     const detail = await res.json().then((d) => (typeof d.detail === "string" ? d.detail : ""), () => "");
-    throw new Error(detail || (res.status === 413 ? "That upload is too large for the scanner." : `The Fixr backend returned ${res.status}.`));
+    throw new Error(detail || (res.status === 413 ? "That upload is too large for the scanner." : `The SCNR backend returned ${res.status}.`));
   }
   const data: { findings: ApiFinding[]; files?: string[] } = await res.json();
   return { findings: data.findings.map(toFinding), files: data.files ?? [] };
@@ -176,7 +176,7 @@ export type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export const CHAT_FINDINGS = 40;
 
-export const CHAT_OFFLINE = "Chat is not switched on yet. It needs the chat endpoint on the Fixr backend.";
+export const CHAT_OFFLINE = "Chat is not switched on yet. It needs the chat endpoint on the SCNR backend.";
 
 /** POST /api/v0/chat, stateless (full history each time); the reply streams back as plain text. */
 export async function chat(
@@ -210,7 +210,7 @@ export async function chat(
     });
   } catch (e) {
     if (signal?.aborted) return;
-    throw new Error("Could not reach the Fixr backend.");
+    throw new Error("Could not reach the SCNR backend.");
   }
   if (res.status === 404 || res.status === 405) throw new Error(CHAT_OFFLINE);
   if (!res.ok || !res.body) throw new Error(res.status === 429 ? "Too many questions in a short time. Try again in a minute." : `The chat returned ${res.status}.`);
