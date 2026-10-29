@@ -1,5 +1,5 @@
-import Scnr from "@/components/Scnr";
+import Fixr from "@/components/Fixr";
 
 export default function Page() {
-  return <Scnr />;
+  return <Fixr />;
 }

@@ -32,7 +32,7 @@ const STEPS: Step[] = [
   },
   {
     title: "Install uv (once)",
-    body: same("uv is a small free tool that installs SCNR and the Python it needs. Copy this, paste it in the terminal (right-click or Ctrl + V) and press Enter."),
+    body: same("uv is a small free tool that installs Fixr and the Python it needs. Copy this, paste it in the terminal (right-click or Ctrl + V) and press Enter."),
     cmd: {
       windows: 'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"',
       mac: "curl -LsSf https://astral.sh/uv/install.sh | sh",
@@ -41,26 +41,26 @@ const STEPS: Step[] = [
     after: same("When it finishes, close the terminal and open a new one, so it can find uv."),
   },
   {
-    title: "Get SCNR (once)",
+    title: "Get Fixr (once)",
     body: {
-      windows: "This downloads SCNR and installs it. It needs Git: if the terminal says git is not recognised, install it from git-scm.com (keep the default options) and open a new terminal. GitHub may open a sign-in window: use the account that has access to fixr-capstone.",
-      mac: "This downloads SCNR and installs it. If your Mac offers to install developer tools for git, accept and run the command again. GitHub may ask you to sign in: use the account that has access to fixr-capstone.",
-      linux: "This downloads SCNR and installs it. It needs git (sudo apt install git on Ubuntu). GitHub may ask you to sign in: use the account that has access to fixr-capstone.",
+      windows: "This downloads Fixr and installs it. It needs Git: if the terminal says git is not recognised, install it from git-scm.com (keep the default options) and open a new terminal. GitHub may open a sign-in window: use the account that has access to fixr-capstone.",
+      mac: "This downloads Fixr and installs it. If your Mac offers to install developer tools for git, accept and run the command again. GitHub may ask you to sign in: use the account that has access to fixr-capstone.",
+      linux: "This downloads Fixr and installs it. It needs git (sudo apt install git on Ubuntu). GitHub may ask you to sign in: use the account that has access to fixr-capstone.",
     },
     cmd: same(`git clone ${CLI_REPO}.git
 cd cli
 uv tool install --overrides overrides.txt .`),
-    after: same("It takes a few minutes the first time. When the terminal is ready again, SCNR is installed."),
+    after: same("It takes a few minutes the first time. When the terminal is ready again, Fixr is installed."),
   },
   {
     title: "Scan your project",
     body: same("Type the command below with a space at the end, then drag your project folder from your files into the terminal window. Its location appears after the command. Press Enter."),
     cmd: same("fixr scan "),
-    after: same("SCNR prints what it found, most serious first. Add --fix-prompt fix.md before pressing Enter to also save a file you can give to ChatGPT, Claude or Copilot to make the fixes."),
+    after: same("Fixr prints what it found, most serious first. Add --fix-prompt fix.md before pressing Enter to also save a file you can give to ChatGPT, Claude or Copilot to make the fixes."),
   },
   {
     title: "Optional: plain-language explanations",
-    body: same("With a free Groq key, SCNR explains the top findings and you can ask it questions with fixr chat. Paste this with your key in place of the dots, in the same terminal, before scanning."),
+    body: same("With a free Groq key, Fixr explains the top findings and you can ask it questions with fixr chat. Paste this with your key in place of the dots, in the same terminal, before scanning."),
     cmd: {
       windows: '$env:GROQ_API_KEY="gsk_..."',
       mac: 'export GROQ_API_KEY="gsk_..."',
@@ -98,7 +98,7 @@ function transcript(): Line[] {
 
   return [
     { text: "$ fixr scan app.py", tone: "cmd" },
-    { text: "SCNR scan of app.py", tone: "head" },
+    { text: "Fixr scan of app.py", tone: "head" },
     { text: "# scanner timings trimmed", tone: "dim" },
     { text: `Groq explained ${real.filter((r) => r.explained).length} findings.` },
     { text: "" },
@@ -116,7 +116,7 @@ function transcript(): Line[] {
         ]), { text: "" }]
       : []),
     ...(alarm.length
-      ? [{ text: "Likely false alarms (SCNR's explanation found these harmless)", tone: "head" } as Line,
+      ? [{ text: "Likely false alarms (Fixr's explanation found these harmless)", tone: "head" } as Line,
          ...alarm.map(({ f }): Line => ({ text: `app.py:${f.line}  ${f.rule}  ${f.title.replace(/\.$/, "")}. ${firstSentence(f.description)}`, tone: "dim" })),
          { text: "" }]
       : []),
@@ -165,7 +165,7 @@ export default function CliPanel({ open, onClose }: { open: boolean; onClose: ()
       <div className="cli__sheet">
         <header className="cli__head">
           <div>
-            <h2 id="cli-title" className="cli__title"><span aria-hidden="true">›_</span> SCNR on your computer</h2>
+            <h2 id="cli-title" className="cli__title"><span aria-hidden="true">›_</span> Fixr on your computer</h2>
             <p className="cli__sub">About five minutes to set up, once. After that, scanning is one command.</p>
           </div>
           <button type="button" className="chat__close" onClick={onClose} aria-label="Close" />

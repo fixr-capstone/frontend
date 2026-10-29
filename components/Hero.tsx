@@ -50,7 +50,7 @@ export default function Hero({
           <span className="hero__real">{REAL_AT.length} worth fixing.</span>
         </h1>
         <p className="hero__sub">
-          SCNR runs four Python scanners over AI-written code, filters out their false alarms, and explains what is left.
+          Fixr runs four Python scanners over AI-written code, filters out their false alarms, and explains what is left.
         </p>
         <div className="hero__ctas">
           <a className="btn btn--primary" href="#scanner" onClick={(e) => { e.preventDefault(); onNav("scanner"); }}>Scan your code</a>

@@ -100,10 +100,10 @@ export default function Chat({
   return (
     <>
       <div className={`chat-scrim ${open ? "is-open" : ""}`} onClick={onClose} aria-hidden="true" />
-      <aside className={`chat ${open ? "is-open" : ""}`} role="dialog" aria-label="Ask SCNR" inert={!open}>
+      <aside className={`chat ${open ? "is-open" : ""}`} role="dialog" aria-label="Ask Fixr" inert={!open}>
         <header className="chat__head">
           <div className="chat__brand">
-            <span className="chat__title">Ask SCNR</span>
+            <span className="chat__title">Ask Fixr</span>
             <span className="chat__status">Answers from this scan</span>
           </div>
           <div className="chat__tools">
@@ -151,7 +151,7 @@ export default function Chat({
               <div key={i} className="msg msg--user">{m.content}</div>
             ) : (
               <article key={i} className={`msg msg--assistant ${live ? "is-live" : ""}`}>
-                <span className="msg__who">SCNR</span>
+                <span className="msg__who">Fixr</span>
                 {m.content ? <Markdown text={m.content} /> : <span className="msg__thinking">Reading the findings</span>}
                 {live && m.content && <span className="msg__caret" aria-hidden="true" />}
                 {!live && m.content && <CopyReply text={m.content} />}

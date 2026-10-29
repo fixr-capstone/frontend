@@ -7,14 +7,14 @@ const display = localFont({ src: "./fonts/bigshoulders.woff2", weight: "100 900"
 const sans = localFont({ src: "./fonts/spacegrotesk.woff2", weight: "300 700", variable: "--font-sans" });
 const mono = localFont({ src: "./fonts/jetbrainsmono.woff2", weight: "100 800", variable: "--font-mono" });
 
-const description = "SCNR runs four Python scanners, filters out their false alarms, and explains the findings worth fixing.";
+const description = "Fixr runs four Python scanners, filters out their false alarms, and explains the findings worth fixing.";
 
 export const metadata: Metadata = {
-  title: "SCNR: security triage for AI-written Python",
+  title: "Fixr: security triage for AI-written Python",
   description,
-  applicationName: "SCNR",
-  openGraph: { title: "SCNR", description, type: "website" },
-  twitter: { card: "summary", title: "SCNR", description },
+  applicationName: "Fixr",
+  openGraph: { title: "Fixr", description, type: "website" },
+  twitter: { card: "summary", title: "Fixr", description },
 };
 
 export const viewport: Viewport = { themeColor: "#131218", colorScheme: "dark" };

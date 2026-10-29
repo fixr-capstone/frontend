@@ -8,7 +8,7 @@ const DETAILED = 25;
 
 export type Grade = { letter: "A" | "B" | "C" | "D" | "F"; score: number; real: Finding[]; falseAlarms: number; counts: Record<Severity, number> };
 
-/** A letter grade from the real findings, ignoring those SCNR's review judged false alarms. */
+/** A letter grade from the real findings, ignoring those Fixr's review judged false alarms. */
 export function grade(findings: Finding[]): Grade {
   const real = findings.filter((f) => !FALSE_ALARM.test(f.description));
   let penalty = 0;
@@ -60,7 +60,7 @@ export function buildReport(findings: Finding[], notes: Finding[], project: stri
   const falseAlarms = findings.filter((f) => !g.real.includes(f)).map((f) =>
     `<li><b>${where(f)}</b> ${esc(f.title.replace(/\.$/, ""))}. ${esc(firstSentence(f.description))}</li>`).join("");
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>SCNR report: ${esc(project)}</title>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Fixr report: ${esc(project)}</title>
 <style>
   @page { margin: 16mm; }
   * { box-sizing: border-box; }
@@ -87,7 +87,7 @@ export function buildReport(findings: Finding[], notes: Finding[], project: stri
   .foot { margin-top: 32px; color: #5b636e; font-size: 12px; }
   @media print { body { padding: 0; } }
 </style></head><body>
-<h1>SCNR security report</h1><p class="sub">${esc(project)} · ${esc(date)}</p>
+<h1>Fixr security report</h1><p class="sub">${esc(project)} · ${esc(date)}</p>
 <div class="grade">
   <div class="grade__letter ${g.letter}">${g.letter}</div>
   <div>
@@ -97,7 +97,7 @@ export function buildReport(findings: Finding[], notes: Finding[], project: stri
 </div>
 ${detailed.length ? `<h2>Fix these first (${detailed.length})</h2>${items}` : ""}
 ${rest.length ? `<h2>Lower-priority issues (${rest.length})</h2><table><thead><tr><th>Rule</th><th>Issue</th><th>Severity</th><th class="num">Count</th><th>Where</th></tr></thead><tbody>${groups}</tbody></table>` : ""}
-${falseAlarms ? `<h2>Likely false alarms</h2><p>SCNR's review judged these harmless in this code.</p><ul>${falseAlarms}</ul>` : ""}
-<p class="foot">Scanned by SCNR: Bandit, pip-audit, deptry and flake8, filtered by an XGBoost false-alarm classifier, explained by an LLM. Results are guidance, not a security audit.</p>
+${falseAlarms ? `<h2>Likely false alarms</h2><p>Fixr's review judged these harmless in this code.</p><ul>${falseAlarms}</ul>` : ""}
+<p class="foot">Scanned by Fixr: Bandit, pip-audit, deptry and flake8, filtered by an XGBoost false-alarm classifier, explained by an LLM. Results are guidance, not a security audit.</p>
 </body></html>`;
 }

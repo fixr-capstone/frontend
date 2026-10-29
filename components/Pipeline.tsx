@@ -86,7 +86,7 @@ export default function Pipeline() {
     <section className={`how ${phase}`} id="how" ref={ref}>
       <div className="how__pin wrap">
         <div className="how__copy">
-          <h2 className="how__title">What SCNR does to your file</h2>
+          <h2 className="how__title">What Fixr does to your file</h2>
           <div className="how__count" aria-live="polite">
             <span className="how__num" key={`n${stage}`}>{s.count}</span>
             <span className="how__label" key={`l${stage}`}>{s.label}</span>

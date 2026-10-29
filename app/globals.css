@@ -1,4 +1,4 @@
-/* SCNR. One dark theme, one accent (mint = signal). Severity colours are data, not decoration.
+/* Fixr. One dark theme, one accent (mint = signal). Severity colours are data, not decoration.
    Corners are sharp (2px) everywhere. Motion animates transform and opacity only. */
 
 :root {
@@ -691,7 +691,7 @@ kbd {
   margin: 0 0 8px; padding: 14px 0 12px; background: var(--ink); border-bottom: 1px solid var(--line);
 }
 .toolbar__row { display: flex; gap: 10px; align-items: stretch; }
-/* search reads like a prompt: the code-editor feel of the rest of SCNR */
+/* search reads like a prompt: the code-editor feel of the rest of Fixr */
 .search {
   position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-items: center;
   border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); transition: border-color 140ms;
