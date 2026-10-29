@@ -130,12 +130,6 @@ button { font: inherit; color: inherit; }
 .hero.is-done .hero__real { color: var(--mint); }
 .hero__sub { margin: 28px 0 0; max-width: 44ch; font-size: 19px; color: var(--muted); text-wrap: pretty; animation: rise 700ms 240ms var(--ease) both; }
 .hero__ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; animation: rise 700ms 320ms var(--ease) both; }
-.hero__stack {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 44px 0 0; padding-top: 22px; border-top: 1px solid var(--line);
-  font-family: var(--mono); font-size: 12px; color: var(--muted); animation: rise 700ms 400ms var(--ease) both;
-}
-.hero__stack span { padding: 5px 9px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--text); }
-.hero__stack i { font-style: normal; color: var(--mint); }
 @supports (animation-timeline: view()) {
   .hero { view-timeline: --hero block; }
   .hero__copy, .signal {
@@ -148,71 +142,71 @@ button { font: inherit; color: inherit; }
 
 @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 
-/* signal field (hero signature) -------------------------------------------- */
+/* the hero's file: scanned, then folded down to the lines worth fixing ----------------------- */
 .signal { position: relative; animation: rise 800ms 200ms var(--ease) both; }
-.signal__meta {
-  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; padding-bottom: 16px;
-  font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+/* the file keeps its full height while it folds, so the page around it does not move */
+.fold { display: flex; flex-direction: column; justify-content: center; min-height: 640px; }
+.fold__file {
+  display: flex; justify-content: space-between; gap: 16px; margin: 0; padding: 0 0 12px;
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; color: var(--muted);
 }
-.signal__tally b { font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
-.signal__tally .signal__kept { margin-left: 14px; color: var(--mint); }
-.signal__field, .signal__ranks { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 5px; }
-.signal__field {
-  position: relative;
-  container-type: inline-size;
-  height: 340px;
-  align-items: end;
-  border-bottom: 1px solid var(--line-strong);
-  background: linear-gradient(color-mix(in srgb, var(--line) 70%, transparent) 1px, transparent 1px) 0 0 / 100% 25%;
-  clip-path: inset(-14px 0 -1px 0);
+.fold__file > span:first-child { color: var(--text); }
+.fold__count b { font-weight: 500; color: var(--mint); font-variant-numeric: tabular-nums; }
+.fold__frame {
+  position: relative; overflow: hidden; padding: 12px 0;
+  background: var(--gutter); border: 1px solid var(--line); border-radius: var(--radius);
 }
-.bar {
-  display: block; width: 100%; height: 100%;
-  padding: 0; border: 0; border-radius: 1px;
-  background: #34313d;
-  transform-origin: bottom;
-  transform: scaleY(var(--h));
-  transition: transform 520ms var(--ease), background-color 420ms ease, opacity 420ms ease;
-}
-.hero:not(.is-sweeping) .bar { animation: jitter 2.4s ease-in-out infinite; }
-.is-sweeping .bar--noise { transform: scaleY(0.035); opacity: 0.55; }
-.is-sweeping .bar--real { background: var(--c); }
-.bar--real { position: relative; cursor: pointer; }
-.bar--real::before { content: ""; position: absolute; top: 0; bottom: 0; left: -8px; right: -8px; }
-.readout__hint--touch { display: none; }
-@media (hover: none) {
-  .readout__hint--pointer { display: none; }
-  .readout__hint--touch { display: inline; }
-}
-.bar--real:disabled { cursor: default; }
-.bar--real:hover:not(:disabled), .bar--real.is-active { opacity: 0.8; }
-.bar--real:focus-visible { outline-offset: 2px; }
-@keyframes jitter {
-  0%, 100% { transform: scaleY(var(--h)); }
-  50% { transform: scaleY(calc(var(--h) * 0.72)); }
-}
+.fold__list { list-style: none; margin: 0; padding: 0; font: 13px/1.6 var(--mono); }
 
-.signal__line {
-  position: absolute; top: -12px; bottom: 0; left: 0; width: 2px; z-index: 1;
-  background: var(--mint); pointer-events: none; opacity: 0;
+/* one source line: number, code, and for a finding its priority */
+.fold__row {
+  display: grid; grid-template-columns: 30px minmax(0, 1fr) 24px; gap: 14px; align-items: baseline;
+  padding: 0 16px; color: var(--faint); transition: color 400ms, background-color 400ms;
 }
-.signal__line::before {
-  content: ""; position: absolute; top: 0; bottom: 0; right: 2px; width: 90px;
-  background: linear-gradient(to right, rgba(93, 249, 192, 0), rgba(93, 249, 192, 0.14));
-}
-.is-sweeping .signal__line { animation: sweep var(--sweep) linear forwards; }
-@keyframes sweep {
-  0% { transform: translateX(0); opacity: 1; }
-  92% { opacity: 1; }
-  100% { transform: translateX(100cqw); opacity: 0; }
-}
+.fold__n { text-align: right; color: var(--faint); font-size: 11px; }
+.fold__code { overflow: hidden; white-space: pre; text-overflow: ellipsis; }
+.fold__rank { justify-self: end; font-size: 11px; color: var(--c); opacity: 0; transition: opacity 300ms; }
 
-.signal__ranks { height: 24px; padding-top: 8px; font-family: var(--mono); font-size: 11px; line-height: 1; }
-.signal__ranks span {
-  grid-row: 1; justify-self: center; color: var(--c);
-  opacity: 0; transform: translateY(-6px); transition: opacity 400ms, transform 400ms var(--ease);
+/* a finding: plain until the scan line reaches it, then lit in its severity */
+.fold__hit button {
+  display: block; width: 100%; padding: 0; background: none; border: 0; text-align: left; cursor: pointer;
+  font: inherit; color: inherit;
 }
-.is-done .signal__ranks span { opacity: 1; transform: none; transition-delay: calc(var(--n) * 90ms); }
+.fold__hit button:disabled { cursor: default; }
+.fold--scanning .fold__hit .fold__row, .fold--folded .fold__hit .fold__row {
+  color: var(--text); background: color-mix(in srgb, var(--c) 10%, transparent); box-shadow: inset 2px 0 0 var(--c);
+  transition-delay: var(--d);
+}
+.fold--scanning .fold__hit .fold__n, .fold--folded .fold__hit .fold__n { color: var(--c); }
+.fold--folded .fold__hit .fold__rank { opacity: 1; }
+.fold--folded .fold__hit .fold__row { padding-block: 5px; }
+.fold--folded .fold__hit + .fold__hit .fold__row { margin-top: 1px; }
+.fold__hit button:hover .fold__row, .fold__hit button:focus-visible .fold__row { background: color-mix(in srgb, var(--c) 18%, transparent); }
+.fold__hit button:focus-visible { outline-offset: -2px; }
+
+/* the lines in between fold away, as an editor folds code, leaving a marker */
+.fold__run { display: grid; grid-template-rows: 1fr 0fr; transition: grid-template-rows 650ms var(--ease); }
+.fold__body, .fold__gap { min-height: 0; overflow: hidden; }
+.fold--folded .fold__run { grid-template-rows: 0fr 1fr; }
+.fold__gap {
+  display: block; padding-left: 60px; font-size: 11px; line-height: 20px; color: var(--faint); opacity: 0;
+  transition: opacity 300ms 350ms;
+}
+.fold__gap::before { content: "··· "; color: var(--line-strong); }
+.fold--folded .fold__gap { opacity: 1; }
+
+/* the scan line runs down the file once */
+.fold__beam {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
+  background: linear-gradient(to bottom, rgba(93, 249, 192, 0.9) 0, rgba(93, 249, 192, 0.9) 2px, rgba(93, 249, 192, 0.12) 2px, transparent 70px);
+  transform: translateY(-2px);
+}
+.fold--scanning .fold__beam { animation: fold-scan var(--sweep) linear forwards; }
+@keyframes fold-scan {
+  0% { opacity: 1; transform: translateY(-2px); }
+  94% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(100%); }
+}
 
 .signal__readout {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px;
@@ -936,30 +930,7 @@ kbd {
 
 /* hero: a faint grid with a scan line passing down it, the scanner reading the page */
 .hero { position: relative; isolation: isolate; overflow: clip; }
-.hero::before, .hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; }
-.hero::before {
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px);
-  background-size: 56px 56px;
-  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 65% 45%, #000 30%, transparent 75%);
-  mask-image: radial-gradient(ellipse 70% 60% at 65% 45%, #000 30%, transparent 75%);
-  opacity: 0; animation: fade-in 1.4s 300ms ease both;
-}
-.hero::after {
-  background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--mint) 5%, transparent) 47%, color-mix(in srgb, var(--mint) 15%, transparent) 50%, transparent 50.3%);
-  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 60% 50%, #000 35%, transparent 80%);
-  mask-image: radial-gradient(ellipse 75% 70% at 60% 50%, #000 35%, transparent 80%);
-  transform: translateY(-50%); opacity: 0; animation: hero-scan 9s 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-@keyframes fade-in { to { opacity: 1; } }
-@keyframes hero-scan {
-  0% { transform: translateY(-50%); opacity: 0; }
-  8% { opacity: 1; }
-  55% { transform: translateY(50%); opacity: 1; }
-  62%, 100% { transform: translateY(50%); opacity: 0; }
-}
-
+.hero::before, 
 /* primary buttons: a light sweep on hover */
 .btn--primary { position: relative; overflow: hidden; isolation: isolate; }
 .btn--primary::after {
@@ -1005,8 +976,10 @@ kbd {
 @media (max-width: 900px) {
   .wrap { padding-inline: 20px; }
   .hero { grid-template-columns: minmax(0, 1fr); gap: 48px; min-height: 0; padding-block: 40px 56px; }
-    .signal__field { height: 220px; }
-  .signal__field, .signal__ranks { gap: 3px; }
+  .fold { min-height: 0; }
+  .fold__list { font-size: 11.5px; }
+  .fold__row { grid-template-columns: 22px minmax(0, 1fr) 20px; gap: 10px; padding-inline: 10px; }
+  .fold__gap { padding-left: 42px; }
   .readout__hint { margin-left: 0; }
   .how__pin { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 14px; padding-top: 18px; }
   .how__title { display: none; }
@@ -1082,8 +1055,6 @@ kbd {
   .how .how__skip { margin: 8px 0 6px; }
   .console__code { line-height: 1.36; }
   .console__note { display: none; }
-  .signal__field, .signal__ranks { gap: 2px; }
-  .signal__ranks { font-size: 9px; }
     }
 
 @media (prefers-reduced-motion: reduce) {

@@ -65,7 +65,7 @@ Before a demo, open the site a minute early so the server is already awake.
 - `app/layout.tsx`: fonts (Big Shoulders Display, Space Grotesk, JetBrains Mono) and metadata
 - `app/globals.css`: the whole design system. One dark theme, one accent (mint), 2px corners
 - `components/Fixr.tsx`: the page. Header, hero, scanner with a flagged-line gutter, results
-- `components/Hero.tsx`: the hero. A scan line sweeps the messy sample's raw warnings, crossing out the headline as it goes; false alarms and style notes collapse and the findings worth fixing rise, numbered by priority
+- `components/Hero.tsx`: the hero. The messy sample's real code, all 31 lines: a scan line runs down it once, lighting each line worth fixing in its severity, then everything else folds away as an editor folds code, leaving the 7 lines numbered by priority with "··· 4 lines" markers between them. Click a line to open it in the scanner
 - `components/Logo.tsx`: the wordmark, drawn as outlines. Its F is built from code lines: the stem is the editor's gutter, the arms are lines, and the mint arm is the finding worth fixing. `app/icon.svg` (favicon) and `app/apple-icon.png` use the small-size cut of the same F. Masters, exports and usage guide: `../fixr-logo-kit/`
 - `components/ServerStatus.tsx`: the header status pill and the waking banner
 - `components/CliPanel.tsx`: "Fixr on your computer", opened from `›_ CLI` in the header or the `$ fixr scan .` line under the hero buttons. A step-by-step guide for people who have never used a terminal: it picks Windows, macOS or Linux for you, says how to open a terminal, gives each command with a Copy button (a step ticks itself off when its command is copied), scans by dragging the project folder into the terminal, and has a short troubleshooting list and a preview of the report. A website cannot start a program on someone's computer, so the guide is the bridge. The CLI itself lives in [fixr-capstone/cli](https://github.com/fixr-capstone/cli) (private)
@@ -167,8 +167,8 @@ Built so a big project (hundreds of findings across dozens of files) stays a sho
 Every animation uses `transform` or `opacity`, so it runs on the compositor and never re-lays out
 or repaints the page, and it switches off under `prefers-reduced-motion`. The moving parts:
 
-- **Hero:** a faint grid fades in, a mint scan line passes down every few seconds, and the signal
-  sweep crosses out the headline.
+- **Hero:** a faint grid fades in; one scan line runs down the sample file, crossing out the
+  headline as it goes, and the lines that are not worth fixing fold away.
 - **Buttons:** a light sweep across primary buttons on hover; a press-down on click.
 - **Grouping switch:** the highlight slides between By issue, By file and By priority.
 - **Results:** changing grouping, severity or file morphs between views (View Transitions; browsers
