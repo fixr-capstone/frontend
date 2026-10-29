@@ -33,6 +33,20 @@ export function morph(update: () => void) {
   setTimeout(run, 300);
 }
 
+/**
+ * An explanation in three parts: the opening paragraph, the "Fix:" paragraph as what to do, and the rest
+ * behind "More detail". Lines pointing at the fix block are dropped: the fix sits right below.
+ */
+export function splitDescription(text: string) {
+  const paras = text.split(/\n\s*\n/).map((p) => p.replace(/\(see the suggested fix\)/g, "").trim()).filter(Boolean);
+  // "Fix:" or "**Fix:**": the bold markers may already be stripped
+  const FIX = /^(?:\*\*)?fix:?(?:\*\*)?:?\s*/i;
+  const fixAt = paras.findIndex((p) => FIX.test(p));
+  const todo = fixAt > 0 ? paras[fixAt].replace(FIX, "") : "";
+  const rest = paras.slice(1).filter((_, i) => i + 1 !== fixAt);
+  return { lead: paras[0] ?? "", todo, rest: rest.join("\n\n") };
+}
+
 /** Per file: count and severity mix, most findings first. */
 function fileStats(findings: Finding[]) {
   const stats = new Map<string, { n: number; c: Record<Severity, number> }>();
@@ -227,34 +241,49 @@ export default function FindingList({
           </span>
           <span className="finding__toggle" aria-hidden="true" />
         </button>
-        {open[f.id] && (
-          <div className="finding__body">
-            <Markdown className="finding__desc" text={f.description} />
-            {(f.snippet || f.suggestedFix) && (
-              <div className="snips">
-                {f.snippet && (
-                  <div className="snip snip--bad">
-                    <div className="snip__head">
-                      <span>Flagged code</span>
-                      <button className={`copy ${copied === f.id + "s" ? "is-copied" : ""}`} onClick={() => copy(f.id + "s", f.snippet)}>{copied === f.id + "s" ? "Copied" : "Copy"}</button>
-                    </div>
-                    <pre>{highlight(f.snippet)}</pre>
-                  </div>
-                )}
+        {open[f.id] && (() => {
+          const { lead, todo, rest } = splitDescription(f.description);
+          return (
+            <div className="finding__body">
+              <Markdown className="finding__desc" text={lead} />
+              {todo && (
+                <div className="finding__todo">
+                  <span>What to do</span>
+                  <Markdown text={todo} />
+                </div>
+              )}
+              {f.snippet && (
+                <div className="snip snip--bad">
+                  <span className="snip__tag">Line {f.line}</span>
+                  <pre>{highlight(f.snippet)}</pre>
+                </div>
+              )}
+              {f.suggestedFix && (
+                <div className="snip snip--fix">
+                  <span className="snip__tag">Suggested fix</span>
+                  <pre>{highlight(f.suggestedFix)}</pre>
+                </div>
+              )}
+              {rest && (
+                <details className="finding__more">
+                  <summary>More detail</summary>
+                  <Markdown text={rest} />
+                </details>
+              )}
+              <div className="finding__actions">
                 {f.suggestedFix && (
-                  <div className="snip snip--fix">
-                    <div className="snip__head">
-                      <span>Suggested fix</span>
-                      <button className={`copy ${copied === f.id + "f" ? "is-copied" : ""}`} onClick={() => copy(f.id + "f", f.suggestedFix)}>{copied === f.id + "f" ? "Copied" : "Copy"}</button>
-                    </div>
-                    <pre>{highlight(f.suggestedFix)}</pre>
-                  </div>
+                  <button className={copied === f.id + "f" ? "is-copied" : ""} onClick={() => copy(f.id + "f", f.suggestedFix)}>
+                    {copied === f.id + "f" ? "Copied" : "Copy fix"}
+                  </button>
                 )}
+                <button className={copied === f.id + "l" ? "is-copied" : ""} onClick={() => copy(f.id + "l", `${f.file}:${f.line}`)}>
+                  {copied === f.id + "l" ? "Copied" : "Copy location"}
+                </button>
+                <button className="finding__ask" onClick={() => onAsk(f)}>Ask about this</button>
               </div>
-            )}
-            <button className="ask" onClick={() => onAsk(f)}>Ask about this finding</button>
-          </div>
-        )}
+            </div>
+          );
+        })()}
       </li>
     );
   };
