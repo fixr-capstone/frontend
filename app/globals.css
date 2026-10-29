@@ -87,23 +87,17 @@ button { font: inherit; color: inherit; }
 }
 @keyframes grow-x { to { transform: scaleX(1); } }
 .logo-link { display: inline-flex; }
-.logo { display: inline-flex; align-items: center; gap: 10px; color: var(--text); }
-.logo__mark { width: 30px; height: 30px; flex: none; }
-.logo__bracket { fill: none; stroke: currentColor; stroke-width: 2.4; transition: transform 380ms var(--ease); animation: logo-in 700ms var(--ease) both; }
-.logo__bracket--l { --from: 4px; }
-.logo__bracket--r { --from: -4px; }
-.logo__signal { fill: var(--mint); transform-box: fill-box; transform-origin: center; animation: logo-bar 700ms 220ms var(--ease) both; }
-@keyframes logo-in { from { opacity: 0; transform: translateX(var(--from)); } }
-@keyframes logo-bar { from { transform: scaleY(0); } }
-/* hover: the brackets close in on the line that matters */
-.logo:hover .logo__bracket--l, .logo-link:focus-visible .logo__bracket--l { transform: translateX(1.5px); }
-.logo:hover .logo__bracket--r, .logo-link:focus-visible .logo__bracket--r { transform: translateX(-1.5px); }
-.logo:hover .logo__signal, .logo-link:focus-visible .logo__signal { animation: logo-blink 900ms step-end 2; }
-@keyframes logo-blink { 50% { opacity: 0.2; } }
-.logo__word { font-family: var(--display); font-weight: 800; font-size: 34px; line-height: 0.8; letter-spacing: 0.08em; padding-top: 2px; }
-.logo--sm { gap: 8px; }
-.logo--sm .logo__mark { width: 22px; height: 22px; }
-.logo--sm .logo__word { font-size: 24px; }
+/* the wordmark: its F is a gutter and two code lines, the mint one the finding */
+.logo { display: block; height: 28px; width: auto; aspect-ratio: 470 / 160; fill: var(--text); overflow: visible; }
+.logo--sm { height: 20px; }
+.logo__gutter { transform-box: fill-box; transform-origin: bottom; animation: logo-gutter 600ms var(--ease) both; }
+.logo__line { transform-box: fill-box; transform-origin: left; animation: logo-line 600ms 160ms var(--ease) both; }
+.logo__signal { fill: var(--mint); animation-delay: 260ms; transition: transform 380ms var(--ease); }
+@keyframes logo-gutter { from { transform: scaleY(0); } }
+@keyframes logo-line { from { transform: scaleX(0); } }
+/* hover: the finding line stretches out and blinks like a cursor */
+.logo-link:hover .logo__signal, .logo-link:focus-visible .logo__signal { transform: scaleX(1.25); animation: logo-blink 900ms step-end 2; }
+@keyframes logo-blink { 50% { opacity: 0.25; } }
 .header__nav { display: flex; align-items: center; gap: 28px; font-size: 15px; }
 .header__nav > a:not(.btn) { color: var(--muted); transition: color 140ms; }
 .header__nav > a:not(.btn):hover { color: var(--text); }
@@ -1068,7 +1062,7 @@ kbd {
 @media (max-width: 520px) {
   .header__nav > a:not(.btn) { display: none; }
   .header__nav { gap: 8px; }
-  .header .logo__word { font-size: 28px; letter-spacing: 0.04em; }
+  .header .logo { height: 22px; }
   .header__nav .btn--sm { padding-inline: 10px; }
 }
 @media (max-width: 360px) {

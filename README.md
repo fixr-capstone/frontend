@@ -66,7 +66,7 @@ Before a demo, open the site a minute early so the server is already awake.
 - `app/globals.css`: the whole design system. One dark theme, one accent (mint), 2px corners
 - `components/Fixr.tsx`: the page. Header, hero, scanner with a flagged-line gutter, results
 - `components/Hero.tsx`: the hero. A scan line sweeps the messy sample's raw warnings, crossing out the headline as it goes; false alarms and style notes collapse and the findings worth fixing rise, numbered by priority
-- `components/Logo.tsx`: code brackets around one mint bar (the line that matters) and the wordmark; `app/icon.svg` is the same mark as the favicon
+- `components/Logo.tsx`: the wordmark, drawn as outlines. Its F is built from code lines: the stem is the editor's gutter, the arms are lines, and the mint arm is the finding worth fixing. `app/icon.svg` (favicon) and `app/apple-icon.png` use the small-size cut of the same F. Masters, exports and usage guide: `../fixr-logo-kit/`
 - `components/ServerStatus.tsx`: the header status pill and the waking banner
 - `components/CliPanel.tsx`: "Fixr on your computer", opened from `›_ CLI` in the header or the `$ fixr scan .` line under the hero buttons. A step-by-step guide for people who have never used a terminal: it picks Windows, macOS or Linux for you, says how to open a terminal, gives each command with a Copy button (a step ticks itself off when its command is copied), scans by dragging the project folder into the terminal, and has a short troubleshooting list and a preview of the report. A website cannot start a program on someone's computer, so the guide is the bridge. The CLI itself lives in [fixr-capstone/cli](https://github.com/fixr-capstone/cli) (private)
 - `app/error.tsx`: the error page for unexpected runtime errors
