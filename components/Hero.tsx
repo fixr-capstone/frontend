@@ -1,148 +1,96 @@
-"use client";
+import Link from "next/link";
+import samples from "@/lib/samples.json";
+import { EXAMPLES, SEVERITY_COLOR } from "@/lib/findings";
+import { toFinding, type ApiFinding } from "@/lib/api";
+import { highlightLine } from "@/lib/highlight";
+import { hintFor, markSpan } from "@/lib/hints";
 
-import { useEffect, useState } from "react";
-import { SEVERITY_COLOR, type Finding } from "@/lib/findings";
-import { COUNTS, REAL_AT, REST, TOTAL, noiseHeight } from "@/lib/signal";
+/**
+ * The hero is the product's argument in one picture: the scanners' raw output, which nobody reads, and one
+ * Fixr review note on the exact line. Both are built from the real scan of the messy sample.
+ */
+const { raw, dropped } = samples.messy;
+const kept = (samples.messy.findings as unknown as ApiFinding[]).map(toFinding);
+const real = kept.filter((f) => !f.style);
+const code = EXAMPLES.messy.code.split("\n");
 
-const SWEEP_MS = 2400;
+type Row = { line: number; rule: string; text: string; kind: "real" | "note" | "drop"; rank?: number; color?: string };
+const rows: Row[] = [
+  ...kept.map((f): Row => f.style
+    ? { line: f.line, rule: f.rule ?? "", text: f.title, kind: "note" }
+    : { line: f.line, rule: f.rule ?? "", text: f.title, kind: "real", rank: real.indexOf(f) + 1, color: SEVERITY_COLOR[f.severity] }),
+  ...dropped.map((d): Row => ({ line: d.line ?? 0, rule: d.rule_id, text: "XML parsed with xml.etree", kind: "drop" })),
+].sort((a, b) => a.line - b.line || a.rule.localeCompare(b.rule));
 
-export default function Hero({
-  findings,
-  onPick,
-  onNav,
-  onCli,
-}: {
-  findings: Finding[];
-  onPick: (finding: Finding) => void;
-  onNav: (id: string) => void;
-  onCli: () => void;
-}) {
-  const [run, setRun] = useState(0);
-  const [scanned, setScanned] = useState(0);
-  const [active, setActive] = useState<number | null>(null);
+// the note shows the SQL injection: the clearest case of "this exact text, changed this way"
+const shown = real.find((f) => f.rule === "B608") ?? real[0];
+const shownLine = code[shown.line - 1] ?? "";
+const span = markSpan(shownLine, shown);
+const hint = hintFor(shown);
+const indent = shownLine.length - shownLine.trimStart().length;
 
-  useEffect(() => {
-    setScanned(0);
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setScanned(TOTAL); return; }
-    let raf = 0;
-    let start = 0;
-    const step = (now: number) => {
-      start ||= now;
-      const n = Math.min(TOTAL, Math.floor(((now - start) / SWEEP_MS) * TOTAL) + 1);
-      setScanned(n);
-      if (n < TOTAL) raf = requestAnimationFrame(step);
-    };
-    const delay = setTimeout(() => (raf = requestAnimationFrame(step)), 650);
-    return () => { clearTimeout(delay); cancelAnimationFrame(raf); };
-  }, [run]);
-
-  const sweeping = scanned > 0;
-  const done = scanned === TOTAL;
-  const byIndex = new Map(REAL_AT.map((at, n) => [at, findings[n]] as const).filter(([, f]) => f));
-  const kept = REAL_AT.filter((at) => at < scanned && byIndex.has(at)).length;
-  const shown = active !== null ? byIndex.get(active) : undefined;
-
+export default function Hero() {
   return (
-    <section className={`wrap hero ${sweeping ? "is-sweeping" : ""} ${done ? "is-done" : ""}`} style={{ ["--sweep" as string]: `${SWEEP_MS}ms`, ["--n" as string]: TOTAL }}>
+    <section className="wrap hero">
       <div className="hero__copy">
+        <p className="eyebrow">Security triage for AI-written Python</p>
         <h1 className="hero__title">
-          <span className="hero__raw"><span className="hero__strike">{TOTAL} warnings.</span></span>
-          <span className="hero__real">{REAL_AT.length} worth fixing.</span>
+          <span className="hero__raw"><s>{raw} warnings.</s></span>
+          <span className="hero__real">{real.length} worth fixing.</span>
         </h1>
         <p className="hero__sub">
-          Fixr runs four Python scanners over AI-written code, filters out their false alarms, and explains what is left.
+          Fixr runs four scanners over your code, drops their false alarms, and marks the exact text to change on the
+          exact line. It doesn&apos;t rewrite your project. It tells you, or the AI tool you build with, what to fix.
         </p>
         <div className="hero__ctas">
-          <a className="btn btn--primary" href="#scanner" onClick={(e) => { e.preventDefault(); onNav("scanner"); }}>Scan your code</a>
-          <a className="btn btn--ghost" href="#how" onClick={(e) => { e.preventDefault(); onNav("how"); }}>How it works</a>
+          <Link className="btn btn--primary" href="/scan">Scan your code</Link>
+          <Link className="btn btn--ghost" href="/scan?sample=messy">Try the messy sample</Link>
         </div>
-        {/* the CLI, offered the way you would use it: as a command */}
-        <button type="button" className="hero__cli" onClick={onCli} aria-haspopup="dialog">
-          <code><i>$</i> fixr scan .<b aria-hidden="true" /></code>
+        <Link className="hero__cli" href="/cli">
+          <code><i>$</i> fixr scan .</code>
           <span>or run it on your own machine</span>
-        </button>
-        {/* the actual pipeline, not a row of vanity numbers */}
-        <p className="hero__stack" aria-label="Pipeline">
-          <span>Bandit</span><span>pip-audit</span><span>deptry</span><span>flake8</span>
-          <i aria-hidden="true">→</i>
-          <span>XGBoost false-alarm filter, no real bug dropped in testing</span>
-          <i aria-hidden="true">→</i>
-          <span>explanations by an LLM on Groq</span>
-        </p>
+        </Link>
       </div>
 
-      <div className="signal">
-        <div className="signal__meta" aria-hidden="true">
-          <span>app.py, raw scanner output</span>
-          <span className="signal__tally"><b>{scanned - kept}</b> set aside <b className="signal__kept">{kept}</b> worth fixing</span>
+      <figure className="artifact" aria-label="Raw scanner output for app.py, and one Fixr review note">
+        <div className="artifact__log">
+          <p className="artifact__bar">
+            <span>app.py · four scanners, raw</span>
+            <span>{raw} raw warnings</span>
+          </p>
+          <ol>
+            {rows.map((r, i) => (
+              <li key={i} className={`log log--${r.kind}`} style={r.color ? { ["--c" as string]: r.color } : undefined}>
+                <span className="log__loc">app.py:{r.line}</span>
+                <span className="log__rule">{r.rule}</span>
+                <span className="log__text">{r.text}</span>
+                <span className="log__tag">{r.kind === "real" ? String(r.rank).padStart(2, "0") : r.kind === "drop" ? "false alarm" : "style"}</span>
+              </li>
+            ))}
+          </ol>
         </div>
 
-        <div className="signal__field" onMouseLeave={() => setActive(null)}>
-          <span className="signal__line" aria-hidden="true" />
-          {Array.from({ length: TOTAL }, (_, i) => {
-            const finding = byIndex.get(i);
-            const delay = `calc(var(--sweep) * ${i / TOTAL})`;
-            if (!finding) {
-              return (
-                <span
-                  key={i}
-                  className="bar bar--noise"
-                  aria-hidden="true"
-                  style={{ ["--h" as string]: noiseHeight(i), transitionDelay: sweeping ? delay : "0s", animationDelay: `${(i % 7) * 110}ms` }}
-                />
-              );
-            }
-            return (
-              <button
-                key={i}
-                type="button"
-                className={`bar bar--real ${active === i ? "is-active" : ""}`}
-                disabled={!done}
-                aria-label={`${finding.severity}: ${finding.title}, ${finding.file} line ${finding.line}`}
-                onMouseEnter={() => setActive(i)}
-                onFocus={() => setActive(i)}
-                onBlur={() => setActive(null)}
-                onClick={() => onPick(finding)}
-                style={{
-                  ["--h" as string]: sweeping ? REST[finding.severity] : noiseHeight(i),
-                  ["--c" as string]: SEVERITY_COLOR[finding.severity],
-                  transitionDelay: sweeping ? delay : "0s",
-                }}
-              />
-            );
-          })}
+        <div className="artifact__note" style={{ ["--c" as string]: SEVERITY_COLOR[shown.severity] }}>
+          <p className="artifact__where">
+            <span>app.py</span><b>line {shown.line}</b><span>{shown.rule}</span>
+            <span className="artifact__sev">{shown.severity}</span>
+          </p>
+          <pre className="artifact__code">
+            <span className="artifact__n">{shown.line}</span>
+            {highlightLine(shownLine.slice(indent, span ? span[0] : undefined))}
+            {span && <mark className="cr__mark">{highlightLine(shownLine.slice(span[0], span[1]))}</mark>}
+            {span && highlightLine(shownLine.slice(span[1]))}
+          </pre>
+          <p className="artifact__title">{shown.title}</p>
+          <dl className="note__steps">
+            <div><dt>Change</dt><dd>{hint?.change}</dd></div>
+            {hint?.check && <div><dt>Check</dt><dd>{hint.check}</dd></div>}
+          </dl>
         </div>
-
-        <div className="signal__ranks" aria-hidden="true">
-          {REAL_AT.map((at, n) => {
-            const f = byIndex.get(at);
-            return f && (
-              <span key={at} style={{ gridColumn: at + 1, ["--c" as string]: SEVERITY_COLOR[f.severity], ["--n" as string]: n }}>
-                {String(n + 1).padStart(2, "0")}
-              </span>
-            );
-          })}
-        </div>
-
-        <div className="signal__readout" aria-live="polite">
-          {shown ? (
-            <>
-              <span className="readout__sev" style={{ color: SEVERITY_COLOR[shown.severity] }}>{shown.severity}</span>
-              <span className="readout__title">{shown.title}</span>
-              <span className="readout__loc">line {shown.line}</span>
-            </>
-          ) : done ? (
-            <>
-              <span className="readout__muted">{COUNTS.dropped} dropped as {COUNTS.dropped === 1 ? "a false alarm" : "false alarms"}, {COUNTS.notes} style notes set aside. Numbered by priority.</span>
-              <span className="readout__hint readout__hint--pointer">Hover a bar to read it, click to open it</span>
-              <span className="readout__hint readout__hint--touch">Tap a bar to open it</span>
-            </>
-          ) : (
-            <span className="readout__muted">Reading {TOTAL} raw warnings</span>
-          )}
-          <button type="button" className="signal__replay" onClick={() => setRun((r) => r + 1)} disabled={!done}>Replay</button>
-        </div>
-      </div>
+        <figcaption className="artifact__cap">
+          The messy sample&apos;s real scan: {raw} warnings in, {dropped.length} false alarms dropped, {kept.length - real.length} style notes set aside, {real.length} ranked.
+        </figcaption>
+      </figure>
     </section>
   );
 }

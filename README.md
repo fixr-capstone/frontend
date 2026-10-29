@@ -1,6 +1,6 @@
 # Fixr
 
-Security triage for AI-written Python. Single page, no routing, no auth.
+Security triage for AI-written Python. Four pages, no auth.
 
 A capstone project by Parth, Sparsh, Anushka and Shrey.
 
@@ -60,28 +60,41 @@ start has to read as "starting", not "broken" (`components/ServerStatus.tsx`):
 
 Before a demo, open the site a minute early so the server is already awake.
 
+## Pages
+
+| Route | What it is |
+|---|---|
+| `/` | The pitch: a hero showing the scanners' raw output against one Fixr review note, a live review of the messy sample, the four steps, and a GitHub link box |
+| `/scan` | The scanner: paste code (or pick a sample), upload a `.zip`, or point at a public GitHub repository; then the results |
+| `/how` | The pipeline run over the messy sample as you scroll, and the model card: what the filter does, its numbers and its limits |
+| `/cli` | The guide to running Fixr from a terminal, for people who have never used one |
+
+`/scan?sample=messy` runs a sample on arrival; `/scan?repo=<link>` fills in a repository (the home page's link box uses it).
+
 ## Files
 
-- `app/layout.tsx`: fonts (Big Shoulders Display, Space Grotesk, JetBrains Mono) and metadata
+- `app/layout.tsx`: fonts (Anybody, Schibsted Grotesk, IBM Plex Mono, self-hosted), metadata, and the header and footer every page shares
+- `app/page.tsx`, `app/scan/page.tsx`, `app/how/page.tsx`, `app/cli/page.tsx`: the four pages
 - `app/globals.css`: the whole design system. One dark theme, one accent (mint), 2px corners
-- `components/Fixr.tsx`: the page. Header, hero, scanner with a flagged-line gutter, results
-- `components/Hero.tsx`: the hero. A scan line sweeps the messy sample's raw warnings, crossing out the headline as it goes; false alarms and style notes collapse and the findings worth fixing rise, numbered by priority
+- `components/SiteHeader.tsx`, `components/SiteFooter.tsx`: navigation, with the current page marked
+- `components/Hero.tsx`: the home hero, built from the messy sample's real scan: the raw scanner output (style notes faded, false alarms struck through, the 7 findings numbered) with one review note laid over it
+- `components/Scanner.tsx`: the `/scan` page. Source tabs (code, `.zip`, GitHub), the scan, the verdict bar, and the code review or list
+- `components/CodeReview.tsx`: the results as a code review (see Review)
+- `components/HomeReview.tsx`: the same review over the messy sample, live on the home page
 - `components/Logo.tsx`: the wordmark, drawn as outlines. Its F is built from code lines: the stem is the editor's gutter, the arms are lines, and the mint arm is the finding worth fixing. `app/icon.svg` (favicon) and `app/apple-icon.png` use the small-size cut of the same F. Masters, exports and usage guide: `../fixr-logo-kit/`
-- `components/ServerStatus.tsx`: the header status pill and the waking banner
-- `components/CliPanel.tsx`: "Fixr on your computer", opened from `›_ CLI` in the header or the `$ fixr scan .` line under the hero buttons. A step-by-step guide for people who have never used a terminal: it picks Windows, macOS or Linux for you, says how to open a terminal, gives each command with a Copy button (a step ticks itself off when its command is copied), scans by dragging the project folder into the terminal, and has a short troubleshooting list and a preview of the report. A website cannot start a program on someone's computer, so the guide is the bridge. The CLI itself lives in [fixr-capstone/cli](https://github.com/fixr-capstone/cli) (private)
-- `app/error.tsx`: the error page for unexpected runtime errors
-- `app/not-found.tsx`: the 404 page
+- `components/ServerStatus.tsx`: one site-wide poll of the backend (in the root layout, so opening any page starts waking a sleeping server), the header status pill and the waking banner
+- `components/CliGuide.tsx`: the CLI guide. It picks Windows, macOS or Linux for you, gives each command with a Copy button (a step ticks itself off when its command is copied), and has a troubleshooting list and a preview of the report. The CLI itself lives in [fixr-capstone/cli](https://github.com/fixr-capstone/cli) (private)
 - `components/Pipeline.tsx`: how it works. The section pins while you scroll and runs scan, filter, rank and explain over the real `app.py` scan, line by line
-- `components/ZipView.tsx`: an uploaded project's Python files, read from the archive in the browser. A read head steps down them while scanning; each then shows its finding count
-- `components/FindingList.tsx`: the results list and its toolbar, plus the file explorer that replaces the x-ray when a scan covers more than 6 files (see Results)
-- `components/XRay.tsx`: results minimap for scans of up to 6 files. Each file drawn one bar per line, findings lit by severity and numbered by priority, linked to the list
+- `components/ZipView.tsx`: an uploaded project's Python files, read from the archive in the browser (or the repository's, for a GitHub scan). A read head steps down them while scanning; each then shows its finding count
+- `components/FindingList.tsx`: the list view and its toolbar, plus the file explorer for scans of more than 6 files
 - `components/Chat.tsx`: the Ask Fixr drawer
+- `app/error.tsx`, `app/not-found.tsx`: the error and 404 pages
+- `lib/hints.ts`: per-rule review hints: which characters to mark, what to change, how to check it. `node lib/hints.check.mts` checks the marking
 - `lib/highlight.tsx`: small Python tokenizer used by the editor and the code blocks
 - `lib/findings.ts`: sample data and sample source files
-- `lib/api.ts`: live scans and chat. Zips pasted code, posts to the backend, maps its findings to the page's shape
-- `lib/report.ts`: the security grade, the one-line verdict under it, and the printable report behind "Report (PDF)". Each kind of issue costs points by severity, repeats add little, likely false alarms and style notes do not count
-- `lib/fixPrompt.ts`: the downloadable fix prompt; `node lib/fixPrompt.check.mts` checks it
-- `lib/signal.ts`: the bar layout and counts used by the hero, derived from `lib/samples.json`
+- `lib/api.ts`: live scans and chat. Zips pasted code, posts to the backend, maps its findings and returned sources to the page's shape
+- `lib/report.ts`: the security grade, the one-line verdict, and the printable report behind "Report (PDF)". Each kind of issue costs points by severity, repeats add little, likely false alarms and style notes do not count
+- `lib/fixPrompt.ts`: the downloadable fix prompt, and the one-finding prompt in each review note; `node lib/fixPrompt.check.mts` checks it
 - `lib/samples.json`: real backend output for the three samples (after editing a sample, or after a scanner change, regenerate with `scripts/snapshot_samples.py`)
 
 ## Backend
@@ -139,46 +152,50 @@ The "Ask Fixr" drawer (`components/Chat.tsx`) talks to this endpoint on the back
   otherwise a compressing proxy buffers the response and the reply arrives in one piece.
 - A 429 means the rate limit was hit. A 404 or 405 shows the "not switched on" message; any other error status shows it to the user.
 
-## Results
+## Review
 
-Built so a big project (hundreds of findings across dozens of files) stays a short page
-(`components/FindingList.tsx`):
+The middle ground between a list of warnings and a rewritten repository: Fixr shows where and what,
+and the fix stays with the user or their AI tool (`components/CodeReview.tsx`, `lib/hints.ts`).
+
+- **The file, not a snippet.** Each scan returns the text of the files with findings (the backend
+  caps it at 256 KB a file, 3 MB in all). Short files show whole; longer ones show each flagged
+  line with three lines before and two after, the gaps folded behind "Show 42 more lines".
+- **The exact characters.** On each flagged line the text to change is underlined: the secret's
+  value, the SQL string being concatenated, `hashlib.md5`, `requests.get(`, `shell=True`. The
+  pattern comes from the rule; without one, from the column the scanner reported.
+- **A note under the line**, as in a code review: what's wrong in one sentence, then **Change**
+  (one instruction written for that rule) and **Check** (how to tell it's fixed). The LLM's longer
+  explanation and its example change, shown as a diff against the flagged line, sit behind two
+  disclosures.
+- **Actions per finding:** copy `file:line`, copy a prompt for just this issue, ask Fixr, mark it
+  handled. Handled findings fade, and the verdict bar counts them ("3 of 7 handled").
+- **Not tied to a line:** dependency advisories get the same notes in a section of their own.
+- Several files get a file list on the left, each with the findings still open.
+
+The list view (`components/FindingList.tsx`) is still there for big scans:
 
 - **Toolbar.** A prompt-style search (`> filter by file, rule or text`; press `/` anywhere to jump
-  to it), the severity chips, and a switch between By issue, By file and By priority. On wide
-  screens it stays under the header. A chosen file shows as a removable chip
-  (`in client/operations/file_operations.py ×`); focus rings appear for keyboard use only.
+  to it), the severity chips, and a switch between By issue, By file and By priority.
 - **Grouping.** Scans of more than 25 findings group by issue, so 50 copies of one warning are one
-  row ("B105 · 50 places in 50 files") with its places inside, 20 at a time. The priority view
-  renders 40 rows at a time. When every group would hold one finding (one file in scope), the list
-  is shown flat.
-- **Explorer.** Scans of more than 6 files get an editor-style explorer in the left column instead
-  of a minimap per file. The folder every file shares (a zip's `<repo>-main/`) is shown once as the
-  project name; files sit under their folders with totals; each file has a signal bar as long as
-  its share of the worst file and coloured by its severity mix. Clicking a file scopes the list and
-  dims the rest. The column scrolls on its own, so it stays in view. On phones the explorer hides
-  and a compact file picker takes its place in the toolbar.
-- **Paths** drop the shared root and wrap after a `/`, not mid-name.
-- Picking a finding from the x-ray, the editor gutter or the hero clears the filters, opens its
-  group, pages to it and scrolls it clear of the toolbar.
+  row ("B105 · 50 places in 50 files") with its places inside, 20 at a time.
+- **Explorer.** Scans of more than 6 files get an editor-style explorer: files under their folders,
+  each with a bar as long as its share of the worst file. Clicking a file scopes the list.
 
 ## Motion and performance
 
-Every animation uses `transform` or `opacity`, so it runs on the compositor and never re-lays out
-or repaints the page, and it switches off under `prefers-reduced-motion`. The moving parts:
+Motion is kept to what explains something, uses only `transform` or `opacity` (so it runs on the
+compositor and never re-lays out the page), and switches off under `prefers-reduced-motion`:
 
-- **Hero:** a faint grid fades in, a mint scan line passes down every few seconds, and the signal
-  sweep crosses out the headline.
-- **Buttons:** a light sweep across primary buttons on hover; a press-down on click.
-- **Grouping switch:** the highlight slides between By issue, By file and By priority.
-- **Results:** changing grouping, severity or file morphs between views (View Transitions; browsers
-  without it, or a transition that cannot start, get the instant update). Rows rise in, capped to
-  the first few.
-- **Copy buttons** pop when they copy; **CLI guide steps** send out a ring when they tick off.
-- **Scroll-driven, no JavaScript:** the reading-progress bar under the header and the back-to-top
-  button that fades in further down both use CSS scroll timelines.
+- **Logo:** the F's stem grows and its code lines draw in on load; on hover the finding line
+  stretches and blinks like a cursor.
+- **Scanning:** a read head steps down the editor or the project's file list, and the pipeline
+  steps tick off.
+- **How it works:** the pinned pipeline section advances stage by stage as you scroll.
+- **Small feedback:** buttons press down, copy buttons pop, review notes open with a short rise,
+  the grouping switch slides, CLI steps send out a ring when they tick off.
+- **Scroll-driven, no JavaScript:** the reading-progress line under the header.
 
-Long result lists stay smooth: hover links a row to its X-ray bar by toggling a class instead of
-re-rendering, entrance staggers are capped to the first rows, and off-screen rows skip layout
-(`content-visibility`). The header uses a near-opaque background instead of a backdrop blur,
-which would repaint on every scroll frame.
+The hero is deliberately still: it makes its point with the real scan, not with an animation.
+Long result lists stay smooth: entrance staggers are capped to the first rows, and off-screen rows
+skip layout (`content-visibility`). The header uses a near-opaque background instead of a backdrop
+blur, which would repaint on every scroll frame.
