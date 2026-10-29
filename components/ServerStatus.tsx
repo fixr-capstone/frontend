@@ -1,33 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import { checkBackend } from "@/lib/api";
-
-const Online = createContext<{ online: boolean | null; recheck: () => void }>({ online: null, recheck: () => {} });
-export const useServer = () => useContext(Online);
-
-/**
- * Polls the backend once for the whole site. It lives in the root layout, so it keeps running across pages:
- * opening the home page already starts waking a sleeping server before anyone reaches the scanner.
- */
-export function ServerProvider({ children }: { children: React.ReactNode }) {
-  const [online, setOnline] = useState<boolean | null>(null);
-  useEffect(() => {
-    let alive = true;
-    const start = Date.now();
-    (async () => {
-      // a sleeping free-tier server can take a minute; keep asking for three before calling it offline
-      while (alive && Date.now() - start < 180_000) {
-        if (await checkBackend()) { if (alive) setOnline(true); return; }
-        await new Promise((ok) => setTimeout(ok, 4000));
-      }
-      if (alive) setOnline(false);
-    })();
-    return () => { alive = false; };
-  }, []);
-  const recheck = () => { checkBackend().then(setOnline); };
-  return <Online.Provider value={{ online, recheck }}>{children}</Online.Provider>;
-}
+import { useEffect, useState } from "react";
 
 // A free Render instance sleeps after 15 idle minutes and takes roughly this long to wake.
 export const WAKE_SECONDS = 60;
@@ -50,8 +23,7 @@ const stateOf = (online: boolean | null, s: number): State =>
   online === null ? (s >= SLOW_AFTER ? "waking" : "checking") : online ? "online" : "offline";
 
 /** Always-visible status in the header, so anyone watching can tell a cold start from a broken site. */
-export function ServerPill({ onClick }: { onClick?: () => void }) {
-  const { online } = useServer();
+export function ServerPill({ online, onClick }: { online: boolean | null; onClick: () => void }) {
   const s = useSeconds(online === null);
   const state = stateOf(online, s);
   // the long part hides on phones, leaving the dot and the counter
@@ -76,8 +48,7 @@ export function ServerPill({ onClick }: { onClick?: () => void }) {
 }
 
 /** The scanner's own line: explains a cold start in plain words while it happens. */
-export function WakeNote() {
-  const { online } = useServer();
+export function WakeNote({ online }: { online: boolean | null }) {
   const s = useSeconds(online === null);
   const state = stateOf(online, s);
   if (state === "waking") {

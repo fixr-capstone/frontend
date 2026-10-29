@@ -86,24 +86,23 @@ export default function Pipeline() {
     <section className={`how ${phase}`} id="how" ref={ref}>
       <div className="how__pin wrap">
         <div className="how__copy">
-          <h2 className="how__title">The messy sample, stage by stage</h2>
+          <h2 className="how__title">What Fixr does to your file</h2>
           <div className="how__count" aria-live="polite">
             <span className="how__num" key={`n${stage}`}>{s.count}</span>
             <span className="how__label" key={`l${stage}`}>{s.label}</span>
           </div>
           <h3 className="how__verb" key={`v${stage}`}>{s.verb}</h3>
           <p className="how__body" key={`b${stage}`}>{s.body}</p>
-          <a
+          <button
+            type="button"
             className="how__skip"
-            href="#model-title"
-            onClick={(e) => {
-              e.preventDefault();
-              const el = document.getElementById("model-title");
+            onClick={() => {
+              const el = document.getElementById("scanner");
               if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 88, behavior: "smooth" });
             }}
           >
-            Skip to the model
-          </a>
+            Skip to the scanner
+          </button>
         </div>
 
         <figure className="console" aria-label={`The messy sample at the ${s.verb.toLowerCase()} stage`}>

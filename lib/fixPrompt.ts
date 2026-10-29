@@ -1,6 +1,4 @@
 import type { Finding } from "@/lib/findings";
-// relative with extension so `node lib/fixPrompt.check.mts` can load it without the path alias
-import { hintFor } from "./hints.ts";
 
 const SECRET_RULES = new Set(["B105", "B106", "B107"]);
 // Detail costs the AI tool context; past this, findings are listed by rule instead.
@@ -88,8 +86,6 @@ export function buildFixPrompt(findings: Finding[], notes: Finding[]): string {
       out.push("");
       if (f.snippet) out.push("Flagged code:", "", block(f.snippet), "");
       out.push("What is wrong:", "", f.description, "");
-      const hint = hintFor(f);
-      if (hint) out.push("What to change:", "", hint.change, "");
       if (f.suggestedFix) out.push("Suggested fix (a starting point, adapt it to the surrounding code):", "", block(f.suggestedFix), "");
     });
   }

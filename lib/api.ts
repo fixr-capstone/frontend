@@ -1,4 +1,4 @@
-import type { Finding, Severity, Sources } from "@/lib/findings";
+import type { Finding, Severity } from "@/lib/findings";
 
 export const SNIPPET_FILE = "untitled.py";
 
@@ -11,7 +11,6 @@ export type ApiFinding = {
   severity: "low" | "medium" | "high" | "unknown";
   file_path: string;
   line: number | null;
-  column?: number | null;
   message: string;
   snippet: string | null;
   tp_probability?: number;
@@ -114,8 +113,6 @@ export function toFinding(f: ApiFinding, i: number): Finding {
     line: f.line ?? 0,
     snippet: flaggedLines(f.snippet ?? "", f.line ?? 0),
     suggestedFix: fix,
-    column: f.column ?? undefined,
-    kind: f.category,
   };
 }
 
@@ -143,9 +140,7 @@ export async function zipPyFiles(file: Blob): Promise<string[]> {
   return files;
 }
 
-export type ScanResult = { findings: Finding[]; files: string[]; sources: Sources };
-
-async function postScan(path: string, init: RequestInit): Promise<ScanResult> {
+async function postScan(path: string, init: RequestInit): Promise<{ findings: Finding[]; files: string[] }> {
   let res: Response;
   try {
     res = await fetch(`${API}/api/v0/${path}`, { method: "POST", ...init });
@@ -157,14 +152,14 @@ async function postScan(path: string, init: RequestInit): Promise<ScanResult> {
     const detail = await res.json().then((d) => (typeof d.detail === "string" ? d.detail : ""), () => "");
     throw new Error(detail || (res.status === 413 ? "That upload is too large for the scanner." : `The Fixr backend returned ${res.status}.`));
   }
-  const data: { findings: ApiFinding[]; files?: string[]; sources?: Sources } = await res.json();
-  return { findings: data.findings.map(toFinding), files: data.files ?? [], sources: data.sources ?? {} };
+  const data: { findings: ApiFinding[]; files?: string[] } = await res.json();
+  return { findings: data.findings.map(toFinding), files: data.files ?? [] };
 }
 
-export async function scanZip(zip: Blob): Promise<ScanResult> {
+export async function scanZip(zip: Blob): Promise<Finding[]> {
   const body = new FormData();
   body.append("file", zip, "upload.zip");
-  return postScan("repositories", { body });
+  return (await postScan("repositories", { body })).findings;
 }
 
 /** The backend downloads the public repo itself, then scans it exactly like an uploaded .zip. */

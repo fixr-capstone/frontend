@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import samples from "@/lib/samples.json";
 import { toFinding, type ApiFinding } from "@/lib/api";
 import { FALSE_ALARM, firstSentence } from "@/lib/fixPrompt";
@@ -131,12 +131,19 @@ function transcript(): Line[] {
 }
 const LINES = transcript();
 
-export default function CliGuide() {
+export default function CliPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
   const [os, setOs] = useState<Os>("windows");
   const [copied, setCopied] = useState<string | null>(null);
   const [done, setDone] = useState<Record<number, boolean>>({});
 
   useEffect(() => setOs(detectOs()), []);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+  }, [open]);
 
   // copying a step's command is the user doing it, so the step ticks itself off
   const copy = (key: string, text: string, step: number) => {
@@ -148,8 +155,21 @@ export default function CliGuide() {
   const progress = STEPS.slice(0, 4).filter((_, i) => done[i]).length;
 
   return (
-    <div className="cli">
+    <dialog
+      ref={ref}
+      className="cli"
+      aria-labelledby="cli-title"
+      onClose={onClose}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="cli__sheet">
+        <header className="cli__head">
+          <div>
+            <h2 id="cli-title" className="cli__title"><span aria-hidden="true">›_</span> Fixr on your computer</h2>
+            <p className="cli__sub">About five minutes to set up, once. After that, scanning is one command.</p>
+          </div>
+          <button type="button" className="chat__close" onClick={onClose} aria-label="Close" />
+        </header>
 
         <div className="cli__body">
           <div className="cli__os" role="tablist" aria-label="Your computer">
@@ -207,7 +227,7 @@ export default function CliGuide() {
           <details className="cli__more">
             <summary>What you will see, for the messy sample</summary>
             <pre className="cli__term" aria-label="Example output of fixr scan">
-              {LINES.map((l, i) => (
+              {open && LINES.map((l, i) => (
                 <span key={i} className={l.tone ? `t-${l.tone}` : undefined} style={{ ["--i" as string]: i }}>{l.text || " "}{"\n"}</span>
               ))}
             </pre>
@@ -219,6 +239,6 @@ export default function CliGuide() {
           <span>The repository is private: you need access to fixr-capstone.</span>
         </footer>
       </div>
-    </div>
+    </dialog>
   );
 }

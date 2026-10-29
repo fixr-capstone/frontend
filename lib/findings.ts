@@ -14,13 +14,7 @@ export type Finding = {
   suggestedFix: string;
   style?: boolean;
   rule?: string;
-  /** 0-based column of the flagged code, where the scanner reports one */
-  column?: number;
-  kind?: "security" | "dependency" | "style";
 };
-
-/** File path -> its text, for showing findings in place. */
-export type Sources = Record<string, string>;
 
 export type ExampleKey = "messy" | "minor" | "clean";
 
