@@ -1,148 +1,155 @@
-"use client";
+import { COUNTS, SEV_SHORT, TILES, TOP, shortTitle } from "@/lib/board";
+import { SEVERITY_COLOR } from "@/lib/findings";
 
-import { useEffect, useRef, useState } from "react";
-import samples from "@/lib/samples.json";
-import { EXAMPLES, SEVERITY_COLOR, type Severity } from "@/lib/findings";
-import { toFinding, type ApiFinding } from "@/lib/api";
-import { highlightLine } from "@/lib/highlight";
+/**
+ * How it works, as a sorting board: every raw warning in the messy sample is a tile. False alarms turn
+ * over and drop out, style notes slide into a set-aside tray, the findings line up ranked, and the top
+ * one opens its explanation. Pure CSS on a 16 s loop; reduced motion shows the sorted board.
+ */
+const TILE_W = 172;
+const TILE_H = 48;
+const COL = TILE_W + 12;
+const ROW = TILE_H + 12;
+const PAD = 16;
 
-type Tag = { rule: string; kind: "drop" | "note" | "real"; severity?: Severity; rank?: number; explained?: boolean };
-
-const { raw, dropped } = samples.messy;
-const apiFindings = samples.messy.findings as unknown as ApiFinding[];
-const kept = apiFindings.map(toFinding);
-const real = kept.filter((f) => !f.style);
-const explainedCount = apiFindings.filter((f) => f.metadata.explanation).length;
-const lines = EXAMPLES.messy.code.replace(/\n$/, "").split("\n");
-
-const tags = new Map<number, Tag[]>();
-const add = (line: number, tag: Tag) => tags.set(line, [...(tags.get(line) ?? []), tag]);
-dropped.forEach((d) => add(d.line ?? 0, { rule: d.rule_id, kind: "drop" }));
-kept.forEach((f, i) => {
-  add(f.line, f.style
-    ? { rule: f.rule ?? "", kind: "note" }
-    : { rule: f.rule ?? "", kind: "real", severity: f.severity, rank: real.indexOf(f), explained: !!apiFindings[i].metadata.explanation });
-});
-
-const top = real[0];
-const topNote = top.description.split(/(?<=[.!?])\s+/)[0];
-
-const STAGES = [
-  {
-    verb: "Scan",
-    count: raw,
-    label: "warnings",
-    body: "Bandit, pip-audit, deptry and flake8 each read the file. Between them they flag every line that might be a problem, and most of it is noise.",
-  },
-  {
-    verb: "Filter",
-    count: kept.length,
-    label: "left",
-    body: `A classifier trained on labelled Bandit results drops the warnings most likely to be false alarms. Here it drops the XML parser warnings on lines ${dropped.map((d) => d.line).join(" and ")}: the file only parses its own settings, not user input.`,
-  },
-  {
-    verb: "Rank",
-    count: real.length,
-    label: "worth fixing",
-    body: "Style notes step aside. The rest are ordered by severity and by how sure the classifier is, so the leaked token comes first.",
-  },
-  {
-    verb: "Explain",
-    count: explainedCount,
-    label: "explained",
-    body: "The top findings get a plain-language explanation and a fix, written from the function each line sits in.",
-  },
+const STAGES: [string, string][] = [
+  ["Scan", "Bandit, pip-audit, deptry and flake8 drop every warning on the board."],
+  ["Filter", "XGBoost turns over confident false alarms. High severity gets a label, never a bin."],
+  ["Rank", "Style notes go to the tray. The rest line up by severity times likelihood."],
+  ["Explain", "A language model reads the code around the top tiles and says what to change."],
 ];
+const COUNT_ROWS: [number, string][] = [
+  [COUNTS.raw, "warnings"],
+  [COUNTS.left, "left"],
+  [COUNTS.real, "worth fixing"],
+  [COUNTS.explained, "explained"],
+];
+const top = TOP.finding;
+const loc = (line: number) => (line > 0 ? `:${line}` : "req");
 
 export default function Pipeline() {
-  const ref = useRef<HTMLElement>(null);
-  const fill = useRef<HTMLElement>(null);
-  const [stage, setStage] = useState(0);
-
-  useEffect(() => {
-    let raf = 0;
-    const update = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const el = ref.current;
-        if (!el) return;
-        const travel = el.offsetHeight - window.innerHeight;
-        const p = travel > 0 ? Math.min(1, Math.max(0, -el.getBoundingClientRect().top / travel)) : 1;
-        // on the fill itself: set on the section, it restyled every line of the console each frame
-        fill.current?.style.setProperty("--p", p.toFixed(4));
-        setStage(p <= 0 ? -1 : Math.min(STAGES.length - 1, Math.floor(p * STAGES.length)));
-      });
-    };
-    update();
-    window.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", update); window.removeEventListener("resize", update); };
-  }, []);
-
-  const s = STAGES[Math.max(0, stage)];
-  const phase = ["", "s0", "s0 s1", "s0 s1 s2", "s0 s1 s2 s3"][stage + 1];
-
   return (
-    <section className={`how ${phase}`} id="how" ref={ref}>
-      <div className="how__pin wrap">
-        <div className="how__copy">
-          <h2 className="how__title">What Fixr does to your file</h2>
-          <div className="how__count" aria-live="polite">
-            <span className="how__num" key={`n${stage}`}>{s.count}</span>
-            <span className="how__label" key={`l${stage}`}>{s.label}</span>
+    <section className="wrap hv" id="how" aria-labelledby="hv-title">
+      <div className="hv__head">
+        <div className="hv__intro">
+          <p className="hv__eyebrow">HOW IT WORKS · THE MESSY SAMPLE, SORTED</p>
+          <h2 id="hv-title" className="hv__title">Nineteen tiles.<br /><span>Four moves.</span></h2>
+        </div>
+        <div className="hv__lede">
+          <p>Every warning in <code>app.py</code> is a tile. Watch Fixr turn them over, set the noise aside, and put the rest in the order you should fix them.</p>
+          <a href="#scanner">Skip to the scanner →</a>
+        </div>
+      </div>
+
+      <div className="hv__body">
+        <div className="hv__side">
+          <div>
+            <span className="hv__label">ON THE BOARD</span>
+            <div className="hv__countwin" aria-live="polite">
+              <div className="hv-count">
+                {COUNT_ROWS.map(([n, label], i) => (
+                  <div key={label} className={`hv__count hv__count--${i}`}><b>{n}</b><span>{label}</span></div>
+                ))}
+              </div>
+            </div>
           </div>
-          <h3 className="how__verb" key={`v${stage}`}>{s.verb}</h3>
-          <p className="how__body" key={`b${stage}`}>{s.body}</p>
-          <button
-            type="button"
-            className="how__skip"
-            onClick={() => {
-              const el = document.getElementById("scanner");
-              if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 88, behavior: "smooth" });
-            }}
-          >
-            Skip to the scanner
-          </button>
+          <ol className="hv__stages">
+            <li aria-hidden="true" className="hv-rail" />
+            {STAGES.map(([verb, body], i) => (
+              <li key={verb} className="hv__stage">
+                <span className={i === 3 ? "is-last" : undefined}><i>{String(i + 1).padStart(2, "0")}</i>  {verb}</span>
+                <span>{body}</span>
+              </li>
+            ))}
+          </ol>
+          <p className="hv__proof">Held-out benchmark: <b>66/66</b> real vulnerabilities kept, <b>30/30</b> hidden findings were false alarms.</p>
         </div>
 
-        <figure className="console" aria-label={`The messy sample at the ${s.verb.toLowerCase()} stage`}>
-          <div className="console__rail" aria-hidden="true">
-            {STAGES.map((x, i) => (
-              <span key={x.verb} className={i <= stage ? "is-on" : ""}>{x.verb}</span>
-            ))}
-            <i className="console__fill" ref={fill} />
-          </div>
-          <div className="console__file">app.py <span>messy sample, real scan output</span></div>
-          <div className="console__code">
-            {lines.map((text, i) => {
-              const n = i + 1;
-              const t = tags.get(n) ?? [];
-              const lead = t.find((x) => x.kind === "real") ?? t.find((x) => x.kind === "note") ?? t[0];
+        <div className="hv__boardwrap">
+          <div className="hv__boardbar"><span>app.py · 31 lines</span><span>tiles = scanner warnings</span></div>
+          <figure
+            className="hv__board"
+            aria-label={`Sorting board: ${COUNTS.raw} warning tiles. ${COUNTS.dropped} false alarms flip and drop out, ${COUNTS.style} style notes slide into a set-aside tray, ${COUNTS.real} findings line up ranked 01 to ${String(COUNTS.real).padStart(2, "0")}, and an explanation opens for finding 01.`}
+          >
+            <div className="hv-sweep" aria-hidden="true" />
+            <div className="hv-falbl hv__falbl">−{COUNTS.dropped} false alarms<br /><span>turned over, dropped</span></div>
+            <div className="hv-tray hv__tray"><span>SET ASIDE · {COUNTS.style} STYLE NOTES</span></div>
+
+            {TILES.map((t, i) => {
+              const left = PAD + (i % 4) * COL;
+              const top0 = PAD + Math.floor(i / 4) * ROW;
+              const pos = { left, top: top0 };
+              const delay = { animationDelay: `${i * 40}ms` };
+              if (t.kind === "alarm") {
+                return (
+                  <div key={i} className="hv__cell" style={pos}>
+                    <div className="hv-in" style={delay}>
+                      <div className="hv-fa hv__flip">
+                        <div className="hv-front hv__tile hv__tile--front"><span>{t.rule}</span><span className="hv__dim">{loc(t.line)}</span></div>
+                        <div className="hv-back hv__tile hv__tile--alarm"><b>FALSE ALARM</b><span className="hv__dim">{t.rule}</span></div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              if (t.kind === "style") {
+                const move = { ["--dx" as string]: `${240 + t.slot * 46 - left}px`, ["--dy" as string]: `${468 - top0}px` };
+                return (
+                  <div key={i} className="hv__cell" style={pos}>
+                    <div className="hv-in" style={delay}>
+                      <div className="hv-st hv__tile hv__tile--style" style={move}><span>{t.rule}</span><span className="hv__dim">{loc(t.line)}</span><em>style</em></div>
+                    </div>
+                  </div>
+                );
+              }
+              const move = { ["--dx" as string]: `${PAD - left}px`, ["--dy" as string]: `${PAD + (t.rank - 1) * ROW - top0}px` };
+              const c = SEVERITY_COLOR[t.finding.severity];
               return (
-                <div
-                  key={n}
-                  className={`cl ${lead ? `cl--${lead.kind}` : ""} ${lead?.explained ? "cl--explained" : ""}`}
-                  style={{ ["--c" as string]: lead?.severity ? SEVERITY_COLOR[lead.severity] : undefined, ["--ln" as string]: i }}
-                >
-                  <span className="cl__rank">{lead?.rank !== undefined ? String(lead.rank + 1).padStart(2, "0") : ""}</span>
-                  <span className="cl__n">{n}</span>
-                  <span className="cl__text">{highlightLine(text)}</span>
-                  <span className="cl__tags">
-                    {t.map((x) => (
-                      <b key={x.rule} className={`tag tag--${x.kind}`} style={{ ["--c" as string]: x.severity ? SEVERITY_COLOR[x.severity] : undefined }}>
-                        {x.rule}
-                      </b>
-                    ))}
-                  </span>
+                <div key={i} className="hv__cell" style={pos}>
+                  <div className="hv-in" style={delay}>
+                    <div className="hv-rl hv__tile hv__tile--real" style={move}>
+                      <span>{t.rule}</span><span className="hv__dim">{loc(t.line)}</span>
+                      <div className="hv-sev hv__sevface" style={{ borderColor: c }}>
+                        <span className="hv__dim">{String(t.rank).padStart(2, "0")}</span>
+                        <span className="hv__what">{shortTitle(t.finding)}</span>
+                        <b style={{ color: c }}>{SEV_SHORT[t.finding.severity]}</b>
+                      </div>
+                      {t.rank <= COUNTS.explained && <span className="hv-ex hv__ex" aria-hidden="true" />}
+                    </div>
+                  </div>
                 </div>
               );
             })}
-          </div>
-          <figcaption className="console__note" style={{ ["--c" as string]: SEVERITY_COLOR[top.severity] }}>
-            <span className="console__note-head">01 · {top.title}, line {top.line}</span>
-            {topNote}
-          </figcaption>
-        </figure>
+
+            <div className="hv-panel hv__panel">
+              <div className="hv__panelhead">
+                <b>01 · {SEV_SHORT[top.severity]}</b>
+                <span>{top.file}:{top.line} · {top.rule}</span>
+                <em>EXPLAINED</em>
+              </div>
+              <p className="hv__paneltitle">{top.title}</p>
+              <p className="hv__panellead">{TOP.lead}</p>
+              <div className="hv__panelcode">
+                <div><span className="is-bad">FLAGGED</span><code className="is-bad">{TOP.flagged}</code></div>
+                {TOP.fix && <div><span className="is-good">FIX LOOKS LIKE</span><code className="is-good">{TOP.fix}</code></div>}
+              </div>
+              <div className="hv__panelfoot">
+                <span>02–{String(COUNTS.explained).padStart(2, "0")} explained the same way</span>
+                <b>→ fix-prompt.md</b>
+              </div>
+            </div>
+          </figure>
+        </div>
+      </div>
+
+      <div className="hv__handoff">
+        <div>
+          <span className="hv__label">THEN · HAND IT OFF</span>
+          <p>The sorted board becomes a fix prompt for the AI tool you already use. Fixr never edits your repo. You and your AI make the changes, one at a time.</p>
+        </div>
+        <div className="hv__handoffcta">
+          <a className="btn btn--primary" href="#scanner">Sort my code</a>
+        </div>
       </div>
     </section>
   );

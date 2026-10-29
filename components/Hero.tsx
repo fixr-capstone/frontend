@@ -1,140 +1,95 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
-import { EXAMPLES, SEVERITY_COLOR, type Finding } from "@/lib/findings";
-import { highlightLine } from "@/lib/highlight";
-import { REAL_AT, TOTAL } from "@/lib/signal";
+import type { Finding } from "@/lib/findings";
+import { COUNTS, SEV_SHORT, real, shortTitle } from "@/lib/board";
+import { grade } from "@/lib/report";
 
 /**
- * The messy sample's real code, scanned and then folded like an editor folds code: a scan line lights each
- * line worth fixing, and everything else folds away until only those lines are left.
+ * The hero: the question every vibe-coded app faces, and the answer printed as a triage receipt for the
+ * messy sample's real scan: raw warnings in, false alarms and style notes out, the findings in order.
  */
-const SCAN_MS = 1800;
-const LINES = EXAMPLES.messy.code.replace(/\n$/, "").split("\n");
-
-type Phase = "idle" | "scanning" | "folded";
+const G = grade(real);
+const STEPS = ["Collect", "Filter", "Rank", "Explain"];
 
 export default function Hero({
-  findings,
   onPick,
   onNav,
   onCli,
 }: {
-  findings: Finding[];
+  findings?: Finding[];
   onPick: (finding: Finding) => void;
   onNav: (id: string) => void;
   onCli: () => void;
 }) {
-  const [run, setRun] = useState(0);
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [active, setActive] = useState<Finding | null>(null);
-
-  useEffect(() => {
-    setPhase("idle");
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setPhase("folded"); return; }
-    const scan = setTimeout(() => setPhase("scanning"), 700);
-    const fold = setTimeout(() => setPhase("folded"), 700 + SCAN_MS + 350);
-    return () => { clearTimeout(scan); clearTimeout(fold); };
-  }, [run]);
-
-  // which source line each finding sits on, with its priority
-  const byLine = new Map(findings.map((f, i) => [f.line, { f, rank: i + 1 }] as const));
-  // the file as runs: a flagged line, or a stretch of lines that fold away together
-  const runs: ({ kind: "hit"; n: number } | { kind: "fold"; from: number; to: number })[] = [];
-  LINES.forEach((_, i) => {
-    const n = i + 1;
-    const last = runs[runs.length - 1];
-    if (byLine.has(n)) runs.push({ kind: "hit", n });
-    else if (last?.kind === "fold") last.to = n;
-    else runs.push({ kind: "fold", from: n, to: n });
-  });
-
-  const sweeping = phase !== "idle";
-  const done = phase === "folded";
-  const line = (n: number, hit?: { f: Finding; rank: number }) => (
-    <span
-      className="fold__row"
-      style={{ ["--d" as string]: `${((n - 1) / LINES.length) * SCAN_MS}ms`, ...(hit ? { ["--c" as string]: SEVERITY_COLOR[hit.f.severity] } : {}) }}
-    >
-      <span className="fold__n">{n}</span>
-      <code className="fold__code">{hit && done ? highlightLine(LINES[n - 1]) : LINES[n - 1] || " "}</code>
-      {hit && <span className="fold__rank">{String(hit.rank).padStart(2, "0")}</span>}
-    </span>
-  );
-
   return (
-    <section className={`wrap hero ${sweeping ? "is-sweeping" : ""} ${done ? "is-done" : ""}`} style={{ ["--sweep" as string]: `${SCAN_MS}ms` }}>
-      <div className="hero__copy">
-        <h1 className="hero__title">
-          <span className="hero__raw"><span className="hero__strike">{TOTAL} warnings.</span></span>
-          <span className="hero__real">{REAL_AT.length} worth fixing.</span>
-        </h1>
-        <p className="hero__sub">
-          Fixr runs four Python scanners over AI-written code, filters out their false alarms, and explains what is left.
+    <section className="wrap hx">
+      <div className="hx__copy">
+        <p className="hx__eyebrow">FOR APPS BUILT WITH CHATGPT, CLAUDE, CURSOR, COPILOT</p>
+        <h1 className="hx__title">It runs.<br /><span>Is it safe<br />to ship?</span></h1>
+        <p className="hx__sub">
+          Security scanners print pages of warnings. Fixr prints the few that matter, in order, with what each one means and
+          what to tell your AI tool. It never changes your code.
         </p>
-        <div className="hero__ctas">
+        <div className="hx__ctas">
           <a className="btn btn--primary" href="#scanner" onClick={(e) => { e.preventDefault(); onNav("scanner"); }}>Scan your code</a>
           <a className="btn btn--ghost" href="#how" onClick={(e) => { e.preventDefault(); onNav("how"); }}>How it works</a>
         </div>
-        {/* the CLI, offered the way you would use it: as a command */}
-        <button type="button" className="hero__cli" onClick={onCli} aria-haspopup="dialog">
-          <code><i>$</i> fixr scan .<b aria-hidden="true" /></code>
-          <span>or run it on your own machine</span>
+        <ol className="hx__steps" aria-label="What Fixr does">
+          {STEPS.map((s, i) => (
+            <li key={s}><span>{String(i + 1).padStart(2, "0")}</span><b className={i === 3 ? "is-last" : undefined}>{s}</b></li>
+          ))}
+        </ol>
+        <button type="button" className="hx__cli" onClick={onCli} aria-haspopup="dialog">
+          <code>$ fixr scan .<i aria-hidden="true" /></code>
+          or print one on your own machine
         </button>
       </div>
 
-      <div className={`signal fold fold--${phase}`} onMouseLeave={() => setActive(null)}>
-        <p className="fold__file" aria-hidden="true">
-          <span>app.py</span>
-          <span className="fold__count"><b>{done ? REAL_AT.length : LINES.length}</b> {done ? "lines worth fixing" : "lines"}</span>
-        </p>
-        <div className="fold__frame">
-        <span className="fold__beam" aria-hidden="true" />
-        <ol className="fold__list" aria-label={`app.py: ${LINES.length} lines, ${findings.length} worth fixing`}>
-          {runs.map((r) => {
-            if (r.kind === "fold") {
-              const count = r.to - r.from + 1;
-              return (
-                <li key={`f${r.from}`} className="fold__run" aria-hidden="true">
-                  <div className="fold__body">
-                    {Array.from({ length: count }, (_, k) => <Fragment key={k}>{line(r.from + k)}</Fragment>)}
-                  </div>
-                  <span className="fold__gap">{count} {count === 1 ? "line" : "lines"}</span>
+      <figure
+        className="rc"
+        aria-label={`A printed triage receipt for app.py: ${COUNTS.raw} raw warnings, ${COUNTS.dropped} false alarms dropped, ${COUNTS.style} style notes set aside, ${COUNTS.real} worth fixing, listed in order`}
+      >
+        <div className="rc__printer">
+          <span>FIXR · TRIAGE</span>
+          <i className="rc__led" aria-hidden="true" />
+        </div>
+        <div className="rc__slot" aria-hidden="true" />
+        <div className="rc__window">
+          <div className="rc__paper">
+            <div className="rc__head">
+              <b>FIXR</b>
+              <span>app.py · 31 lines · 4 scanners</span>
+            </div>
+            <hr />
+            <p className="rc__row"><span>RAW WARNINGS</span><span>{COUNTS.raw}</span></p>
+            <p className="rc__row rc__row--dim"><span>FALSE ALARMS DROPPED</span><span>−{COUNTS.dropped}</span></p>
+            <p className="rc__row rc__row--dim"><span>STYLE NOTES SET ASIDE</span><span>−{COUNTS.style}</span></p>
+            <hr />
+            <p className="rc__row rc__row--total rc__row--big"><span>WORTH FIXING</span><span>{COUNTS.real}</span></p>
+            <hr />
+            <ol className="rc__list">
+              {real.map((f, i) => (
+                <li key={f.id}>
+                  <button type="button" onClick={() => onPick(f)} title={f.title}>
+                    <span>{String(i + 1).padStart(2, "0")}</span>
+                    <b className={`rc__sev rc__sev--${f.severity}`}>{SEV_SHORT[f.severity]}</b>
+                    <span className="rc__what">{shortTitle(f)}</span>
+                    <span className="rc__line">:{f.line}</span>
+                  </button>
                 </li>
-              );
-            }
-            const hit = byLine.get(r.n)!;
-            return (
-              <li key={`h${r.n}`} className="fold__hit">
-                <button
-                  type="button"
-                  disabled={!done}
-                  aria-label={`${hit.f.severity}: ${hit.f.title}, line ${hit.f.line}`}
-                  onMouseEnter={() => setActive(hit.f)}
-                  onFocus={() => setActive(hit.f)}
-                  onBlur={() => setActive(null)}
-                  onClick={() => onPick(hit.f)}
-                >
-                  {line(r.n, hit)}
-                </button>
-              </li>
-            );
-          })}
-        </ol>
+              ))}
+            </ol>
+            <hr />
+            <p className="rc__row rc__row--total"><span>GRADE</span><span>{G.letter} · {G.score}/100</span></p>
+            <p className="rc__hand">Hand this to your AI tool:<br /><b>fix-prompt.md</b></p>
+            <p className="rc__fine">Guidance, not a security audit.</p>
+            <div className="rc__stamp" aria-hidden="true">START AT 01</div>
+            <svg className="rc__tear" aria-hidden="true" viewBox="0 0 370 10" preserveAspectRatio="none">
+              <path d="M0 10 L0 0 L10 10 L20 0 L30 10 L40 0 L50 10 L60 0 L70 10 L80 0 L90 10 L100 0 L110 10 L120 0 L130 10 L140 0 L150 10 L160 0 L170 10 L180 0 L190 10 L200 0 L210 10 L220 0 L230 10 L240 0 L250 10 L260 0 L270 10 L280 0 L290 10 L300 0 L310 10 L320 0 L330 10 L340 0 L350 10 L360 0 L370 10 Z" />
+            </svg>
+          </div>
         </div>
-
-        <div className="signal__readout" aria-live="polite">
-          {active ? (
-            <>
-              <span className="readout__sev" style={{ color: SEVERITY_COLOR[active.severity] }}>{active.severity}</span>
-              <span className="readout__title">{active.title}</span>
-            </>
-          ) : (
-            <span className="readout__muted">{done ? "Click a line to open it in the scanner" : "Scanning app.py"}</span>
-          )}
-          <button type="button" className="signal__replay" onClick={() => setRun((r) => r + 1)} disabled={!done}>Replay</button>
-        </div>
-      </div>
+      </figure>
     </section>
   );
 }
